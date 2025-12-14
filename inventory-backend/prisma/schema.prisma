@@ -1,0 +1,258 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model activity_logs {
+  id         String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  shop_id    String?   @db.Uuid
+  user_id    String?   @db.Uuid
+  action     String?   @db.VarChar
+  entity     String?   @db.VarChar
+  entity_id  String?   @db.Uuid
+  created_at DateTime? @default(now()) @db.Timestamp(6)
+}
+
+model categories {
+  id          String     @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  shop_id     String?    @db.Uuid
+  name        String     @db.VarChar
+  description String?
+  created_at  DateTime?  @default(now()) @db.Timestamp(6)
+  shops       shops?     @relation(fields: [shop_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  products    products[]
+}
+
+model customers {
+  id         String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  shop_id    String?   @db.Uuid
+  name       String?   @db.VarChar
+  phone      String?   @db.VarChar
+  email      String?   @db.VarChar
+  created_at DateTime? @default(now()) @db.Timestamp(6)
+  shops      shops?    @relation(fields: [shop_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  sales      sales[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model equity {
+  id         String            @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  shop_id    String?           @db.Uuid
+  type       enum_equity_type?
+  amount     Decimal?          @db.Decimal
+  note       String?
+  created_by String?           @db.Uuid
+  created_at DateTime?         @default(now()) @db.Timestamp(6)
+  users      users?            @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  shops      shops?            @relation(fields: [shop_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model inventory {
+  id                 String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  shop_id            String?   @db.Uuid
+  product_id         String?   @db.Uuid
+  quantity_available Int?
+  reorder_level      Int?      @default(0)
+  last_updated       DateTime? @default(now()) @db.Timestamp(6)
+  products           products? @relation(fields: [product_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  shops              shops?    @relation(fields: [shop_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([product_id], map: "idx_inventory_product")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model products {
+  id              String             @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  shop_id         String?            @db.Uuid
+  category_id     String?            @db.Uuid
+  supplier_id     String?            @db.Uuid
+  name            String             @db.VarChar
+  sku             String             @db.VarChar
+  unit            enum_product_unit?
+  cost_price      Decimal?           @db.Decimal
+  selling_price   Decimal?           @db.Decimal
+  is_active       Boolean?           @default(true)
+  created_at      DateTime?          @default(now()) @db.Timestamp(6)
+  updated_at      DateTime?          @default(now()) @db.Timestamp(6)
+  inventory       inventory[]
+  categories      categories?        @relation(fields: [category_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  shops           shops?             @relation(fields: [shop_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  suppliers       suppliers?         @relation(fields: [supplier_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  purchase_items  purchase_items[]
+  sale_items      sale_items[]
+  stock_movements stock_movements[]
+
+  @@unique([shop_id, sku])
+  @@index([shop_id], map: "idx_products_shop")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model purchase_items {
+  id          String     @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  purchase_id String?    @db.Uuid
+  product_id  String?    @db.Uuid
+  quantity    Int?
+  cost_price  Decimal?   @db.Decimal
+  products    products?  @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  purchases   purchases? @relation(fields: [purchase_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model purchases {
+  id             String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  shop_id        String?          @db.Uuid
+  supplier_id    String?          @db.Uuid
+  total_cost     Decimal?         @db.Decimal
+  created_by     String?          @db.Uuid
+  created_at     DateTime?        @default(now()) @db.Timestamp(6)
+  purchase_items purchase_items[]
+  users          users?           @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  shops          shops?           @relation(fields: [shop_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  suppliers      suppliers?       @relation(fields: [supplier_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model sale_items {
+  id            String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  sale_id       String?   @db.Uuid
+  product_id    String?   @db.Uuid
+  quantity      Int?
+  selling_price Decimal?  @db.Decimal
+  products      products? @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  sales         sales?    @relation(fields: [sale_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model sales {
+  id             String               @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  shop_id        String?              @db.Uuid
+  customer_id    String?              @db.Uuid
+  total_amount   Decimal?             @db.Decimal
+  payment_method enum_payment_method?
+  created_by     String?              @db.Uuid
+  created_at     DateTime?            @default(now()) @db.Timestamp(6)
+  sale_items     sale_items[]
+  users          users?               @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  customers      customers?           @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  shops          shops?               @relation(fields: [shop_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model shops {
+  id              String            @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name            String            @db.VarChar
+  business_type   String?           @db.VarChar
+  address         String?
+  phone           String?           @db.VarChar
+  created_at      DateTime?         @default(now()) @db.Timestamp(6)
+  updated_at      DateTime?         @default(now()) @db.Timestamp(6)
+  categories      categories[]
+  customers       customers[]
+  equity          equity[]
+  inventory       inventory[]
+  products        products[]
+  purchases       purchases[]
+  sales           sales[]
+  stock_movements stock_movements[]
+  suppliers       suppliers[]
+  user_shops      user_shops[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model stock_movements {
+  id           String            @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  shop_id      String?           @db.Uuid
+  product_id   String?           @db.Uuid
+  type         enum_stock_type
+  quantity     Int?
+  source       enum_stock_source
+  reference_id String?           @db.Uuid
+  created_by   String?           @db.Uuid
+  created_at   DateTime?         @default(now()) @db.Timestamp(6)
+  users        users?            @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  products     products?         @relation(fields: [product_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  shops        shops?            @relation(fields: [shop_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([created_at], map: "idx_stock_date")
+  @@index([product_id], map: "idx_stock_product")
+}
+
+model suppliers {
+  id         String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  shop_id    String?     @db.Uuid
+  name       String      @db.VarChar
+  phone      String?     @db.VarChar
+  email      String?     @db.VarChar
+  address    String?
+  created_at DateTime?   @default(now()) @db.Timestamp(6)
+  products   products[]
+  purchases  purchases[]
+  shops      shops?      @relation(fields: [shop_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model user_shops {
+  id      String         @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  user_id String?        @db.Uuid
+  shop_id String?        @db.Uuid
+  role    enum_user_role
+  shops   shops?         @relation(fields: [shop_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users   users?         @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model users {
+  id              String            @id @db.Uuid
+  name            String?           @db.VarChar
+  email           String            @unique @db.VarChar
+  created_at      DateTime?         @default(now()) @db.Timestamp(6)
+  updated_at      DateTime?         @default(now()) @db.Timestamp(6)
+  equity          equity[]
+  purchases       purchases[]
+  sales           sales[]
+  stock_movements stock_movements[]
+  user_shops      user_shops[]
+
+  @@index([email], map: "idx_users_email")
+}
+
+enum enum_equity_type {
+  INVESTMENT
+  WITHDRAWAL
+}
+
+enum enum_payment_method {
+  CASH
+  UPI
+  CARD
+  BANK
+}
+
+enum enum_product_unit {
+  piece
+  bunch
+  kg
+  pot
+}
+
+enum enum_stock_source {
+  PURCHASE
+  SALE
+  DAMAGE
+  EXPIRED
+  MANUAL
+}
+
+enum enum_stock_type {
+  IN
+  OUT
+  ADJUSTMENT
+}
+
+enum enum_user_role {
+  OWNER
+  MANAGER
+  STAFF
+}
