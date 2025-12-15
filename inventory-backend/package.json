@@ -5,12 +5,16 @@
   "author": "",
   "private": true,
   "license": "UNLICENSED",
+  "engines": {
+    "node": ">=20 <23"
+  },
   "scripts": {
     "prisma:generate": "prisma generate",
     "prebuild": "npm run prisma:generate",
-    "build": "npx nest build",
+    "clean": "rm -rf dist",
+    "build": "npm run clean && tsc -p tsconfig.build.json",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
-    "start": "npx nest start",
+    "start": "node dist/src/main.js",
     "start:dev": "npx nest start --watch",
     "start:debug": "npx nest start --debug --watch",
     "start:prod": "node dist/src/main.js",
@@ -44,6 +48,7 @@
     "prisma": "^7.1.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
+    "typescript": "^5.7.3",
     "zod": "^4.1.13"
   },
   "devDependencies": {
@@ -68,7 +73,6 @@
     "ts-loader": "^9.5.2",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
-    "typescript": "^5.7.3",
     "typescript-eslint": "^8.20.0"
   },
   "jest": {
