@@ -6,6 +6,8 @@ import { loadConfig } from './config/configuration';
 import { InventoryModule } from './inventory/inventory.module';
 import { PurchasesModule } from './purchases/purchases.module';
 import { SalesModule } from './sales/sales.module';
+import { ContactsModule } from './contacts/contacts.module';
+import { ReportsModule } from './reports/reports.module';
 
 @Module({
   imports: [
@@ -18,6 +20,8 @@ import { SalesModule } from './sales/sales.module';
     InventoryModule,
     PurchasesModule,
     SalesModule,
+    ContactsModule,
+    ReportsModule,
   ],
 })
 export class AppModule {}

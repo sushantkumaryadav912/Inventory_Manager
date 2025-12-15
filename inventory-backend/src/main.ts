@@ -1,11 +1,17 @@
+import 'dotenv/config';
 import { config as loadEnvConfig } from 'dotenv';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { NestFactory } from '@nestjs/core';
-import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
+import {
+  FastifyAdapter,
+  NestFastifyApplication,
+} from '@nestjs/platform-fastify';
 import helmet from '@fastify/helmet';
 import compress from '@fastify/compress';
 import { AppModule } from './app.module';
+import { GlobalExceptionFilter } from './common/filters/http-exception.filter';
+import { RequestIdInterceptor } from './common/interceptors/request-id.interceptor';
 
 // Ensure env vars are available even when the process is started from repo root
 // or when running the compiled output from `dist/`.
@@ -39,7 +45,10 @@ async function bootstrap() {
     credentials: true,
   });
 
-  const port = process.env.PORT ? Number(process.env.PORT) : 3000;
+  app.useGlobalFilters(new GlobalExceptionFilter());
+  app.useGlobalInterceptors(new RequestIdInterceptor());
+
+  const port = Number(process.env.PORT) || 3000;
   await app.listen(port, '0.0.0.0');
 }
 bootstrap();
