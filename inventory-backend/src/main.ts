@@ -60,10 +60,13 @@ async function bootstrap() {
     ? process.env.ALLOWED_ORIGINS.split(',').map(origin => origin.trim())
     : ['http://localhost:3000', 'http://localhost:5173'];
 
+  // For production, allow specified origins or all origins if ALLOWED_ORIGINS is empty
+  const corsOrigin = process.env.NODE_ENV === 'production' && process.env.ALLOWED_ORIGINS
+    ? allowedOrigins
+    : true; // Allow all origins in development or if ALLOWED_ORIGINS not set
+
   app.enableCors({
-    origin: process.env.NODE_ENV === 'production' 
-      ? allowedOrigins 
-      : true,
+    origin: corsOrigin,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'x-shop-id'],
