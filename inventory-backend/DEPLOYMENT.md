@@ -34,13 +34,13 @@ This guide covers deploying the Inventory Backend to Render.
 
 Add the following environment variables in Render:
 
-| Variable | Value | Description |
-|----------|-------|-------------|
-| `DATABASE_URL` | `postgresql://...` | Your PostgreSQL connection string (from Step 1) |
-| `NODE_ENV` | `production` | Sets the environment to production |
-| `NEON_JWKS_URL` | `https://...` | Your Neon Auth JWKS endpoint |
-| `ALLOWED_ORIGINS` | `https://yourdomain.com` | Comma-separated list of allowed CORS origins |
-| `PORT` | (auto-set by Render) | Render sets this automatically |
+| Variable | Required | Value | Description |
+|----------|----------|-------|-------------|
+| `DATABASE_URL` | ✅ Yes | `postgresql://...` | Your PostgreSQL connection string (from Step 1) |
+| `NODE_ENV` | ✅ Yes | `production` | Sets the environment to production |
+| `NEON_JWKS_URL` | ✅ Yes | `https://...` | Your Neon Auth JWKS endpoint |
+| `ALLOWED_ORIGINS` | ⚠️ Optional | `https://yourdomain.com` | Comma-separated allowed CORS origins (if empty, allows all origins) |
+| `PORT` | ⚠️ Auto | (auto-set by Render) | Render sets this automatically |
 
 ### Example ALLOWED_ORIGINS
 
