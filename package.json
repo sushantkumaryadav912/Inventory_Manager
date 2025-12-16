@@ -1,4 +1,11 @@
 {
+  "private": true,
+  "scripts": {
+    "backend:install": "npm --prefix inventory-backend install",
+    "backend:build": "npm --prefix inventory-backend run build",
+    "backend:start": "npm --prefix inventory-backend start",
+    "backend:start:prod": "npm --prefix inventory-backend run start:prod"
+  },
   "dependencies": {
     "@nestjs/common": "^11.1.9",
     "@nestjs/core": "^11.1.9"
