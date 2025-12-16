@@ -13,42 +13,94 @@ import { AppModule } from './app.module';
 import { GlobalExceptionFilter } from './common/filters/http-exception.filter';
 import { RequestIdInterceptor } from './common/interceptors/request-id.interceptor';
 
-// Ensure env vars are available even when the process is started from repo root
-// or when running the compiled output from `dist/`.
-const envCandidates = [
-  // When compiled: dist/src -> inventory-backend/.env
-  join(__dirname, '..', '..', '.env'),
-  // When started from inventory-backend/
-  join(process.cwd(), '.env'),
-  // When started from repo root
-  join(process.cwd(), 'inventory-backend', '.env'),
-];
+// Load environment variables only in non-production or when .env exists locally
+if (process.env.NODE_ENV !== 'production') {
+  const envCandidates = [
+    join(__dirname, '..', '..', '.env'),
+    join(process.cwd(), '.env'),
+    join(process.cwd(), 'inventory-backend', '.env'),
+  ];
 
-for (const envPath of envCandidates) {
-  if (existsSync(envPath)) {
-    loadEnvConfig({ path: envPath });
-    break;
+  for (const envPath of envCandidates) {
+    if (existsSync(envPath)) {
+      loadEnvConfig({ path: envPath, override: false });
+      console.log(`✓ Loaded environment from: ${envPath}`);
+      break;
+    }
   }
 }
 
 async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
-    new FastifyAdapter(),
+    new FastifyAdapter({ logger: process.env.NODE_ENV === 'development' }),
   );
 
-  await app.register(helmet);
-  await app.register(compress);
-
-  app.enableCors({
-    origin: true,
-    credentials: true,
+  // Configure Helmet with production-ready security headers
+  await app.register(helmet, {
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: [`'self'`],
+        styleSrc: [`'self'`, `'unsafe-inline'`],
+        imgSrc: [`'self'`, 'data:', 'https:'],
+        scriptSrc: [`'self'`],
+      },
+    },
+    crossOriginEmbedderPolicy: false,
   });
 
+  // Configure compression
+  await app.register(compress, { 
+    encodings: ['gzip', 'deflate'],
+    threshold: 1024,
+  });
+
+  // Configure CORS with environment-based origins
+  const allowedOrigins = process.env.ALLOWED_ORIGINS
+    ? process.env.ALLOWED_ORIGINS.split(',').map(origin => origin.trim())
+    : ['http://localhost:3000', 'http://localhost:5173'];
+
+  app.enableCors({
+    origin: process.env.NODE_ENV === 'production' 
+      ? allowedOrigins 
+      : true,
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-shop-id'],
+  });
+
+  // Apply global filters and interceptors
   app.useGlobalFilters(new GlobalExceptionFilter());
   app.useGlobalInterceptors(new RequestIdInterceptor());
 
+  // Enable graceful shutdown
+  app.enableShutdownHooks();
+
   const port = Number(process.env.PORT) || 3000;
   await app.listen(port, '0.0.0.0');
+
+  console.log(`🚀 Application is running on: http://0.0.0.0:${port}`);
+  console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`🔒 CORS enabled for: ${process.env.NODE_ENV === 'production' ? allowedOrigins.join(', ') : 'all origins (development)'}`);
+
+  // Graceful shutdown handlers
+  const gracefulShutdown = async (signal: string) => {
+    console.log(`\n🛑 ${signal} received. Starting graceful shutdown...`);
+    try {
+      await app.close();
+      console.log('✓ Application closed successfully');
+      process.exit(0);
+    } catch (error) {
+      console.error('❌ Error during shutdown:', error);
+      process.exit(1);
+    }
+  };
+
+  process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+  process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 }
-bootstrap();
+
+bootstrap().catch((error) => {
+  console.error('❌ Failed to start application:', error);
+  process.exit(1);
+});
