@@ -84,7 +84,12 @@ async function bootstrap() {
 
   console.log(`🚀 Application is running on: http://0.0.0.0:${port}`);
   console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`🔒 CORS enabled for: ${process.env.NODE_ENV === 'production' ? allowedOrigins.join(', ') : 'all origins (development)'}`);
+  
+  if (process.env.NODE_ENV === 'production' && process.env.ALLOWED_ORIGINS) {
+    console.log(`🔒 CORS enabled for: ${allowedOrigins.join(', ')}`);
+  } else {
+    console.log(`🔒 CORS enabled for: all origins (use ALLOWED_ORIGINS env var to restrict)`);
+  }
 
   // Graceful shutdown handlers
   const gracefulShutdown = async (signal: string) => {
