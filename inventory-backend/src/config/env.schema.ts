@@ -8,6 +8,8 @@ export const envSchema = z.object({
   NEON_JWKS_URL: z.string().url(),
 
   PORT: z.coerce.number().default(3000),
+
+  ALLOWED_ORIGINS: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;
