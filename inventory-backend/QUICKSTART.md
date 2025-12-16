@@ -76,11 +76,15 @@ In the Web Service settings, add these environment variables:
    ```
    *(Your Neon Auth JWKS endpoint)*
 
-4. **ALLOWED_ORIGINS** (Production only - comma-separated)
+### Optional Variables (Can Set Later)
+
+4. **ALLOWED_ORIGINS** (Optional - for production security)
    ```
    https://yourdomain.com,https://www.yourdomain.com
    ```
    *(Your frontend URLs - include protocol, no trailing slash)*
+   
+   **Note:** If not set, the backend will accept requests from all origins. Set this once your frontend is deployed for better security.
 
 ### How to Add Variables
 
