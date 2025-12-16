@@ -4,10 +4,13 @@ import {
   ExceptionFilter,
   HttpException,
   HttpStatus,
+  Logger,
 } from '@nestjs/common';
 
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
+  private readonly logger = new Logger(GlobalExceptionFilter.name);
+
   catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const res = ctx.getResponse<any>();
@@ -27,6 +30,8 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         ? response
         : (response as any).message ?? 'Error';
 
+    const isProduction = process.env.NODE_ENV === 'production';
+
     const payload = {
       statusCode: status,
       message: errorMessage,
@@ -34,19 +39,31 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       method: req.method,
       timestamp: new Date().toISOString(),
       requestId: (req as any).requestId,
+      // Only include stack trace in non-production
+      ...((!isProduction && exception instanceof Error) && { 
+        stack: exception.stack 
+      }),
     };
 
-    // Structured log (stdout)
-    console.error(
-      JSON.stringify({
-        level: 'error',
-        ...payload,
-        stack:
-          exception instanceof Error ? exception.stack : undefined,
+    // Structured logging
+    const logPayload = {
+      level: 'error',
+      ...payload,
+      stack: exception instanceof Error ? exception.stack : undefined,
+      ...(exception instanceof Error && {
+        name: exception.name,
+        message: exception.message,
       }),
-    );
+    };
 
-    // Works for both Fastify (reply.status().send) and Express (res.status().send)
+    // Log full details to stdout (for Render logs)
+    if (status >= 500) {
+      this.logger.error(JSON.stringify(logPayload));
+    } else {
+      this.logger.warn(JSON.stringify(logPayload));
+    }
+
+    // Send sanitized response to client
     res.status(status).send(payload);
   }
 }
