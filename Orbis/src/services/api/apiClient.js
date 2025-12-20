@@ -50,6 +50,9 @@ const apiClient = axios.create({
   },
 });
 
+const NEON_PROJECT_ID = ENV.NEON_PROJECT_ID?.trim();
+const NEON_API_KEY = ENV.NEON_API_KEY?.trim();
+
 // Request interceptor - inject auth headers
 apiClient.interceptors.request.use(
   async (config) => {
@@ -70,6 +73,14 @@ apiClient.interceptors.request.use(
           config.headers['x-shop-id'] = resolvedShopId;
         }
       }
+
+      if (NEON_PROJECT_ID) {
+        config.headers['x-neon-project-id'] = NEON_PROJECT_ID;
+      }
+
+      if (NEON_API_KEY) {
+        config.headers['x-neon-api-key'] = NEON_API_KEY;
+      }
     } catch (error) {
       console.error('Failed to inject auth headers:', error);
     }
@@ -87,11 +98,14 @@ apiClient.interceptors.response.use(
   async (error) => {
     const { status } = error.response || {};
     
-    // Handle 401 - token expired, force logout
+    // Handle 401 - token expired, force logout (only if we actually have a session)
     if (status === 401) {
-      console.log('Session expired, clearing auth...');
-      await secureStorage.clearAuth();
-      // Optionally: trigger navigation to login (requires navigation ref)
+      const storedAuth = await secureStorage.getAuth();
+      if (storedAuth?.accessToken) {
+        console.log('Session expired, clearing auth...');
+        await secureStorage.clearAuth();
+        // Optionally: trigger navigation to login (requires navigation ref)
+      }
     }
     
     // Handle other errors

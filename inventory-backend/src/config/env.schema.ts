@@ -7,6 +7,8 @@ export const envSchema = z.object({
 
   NEON_JWKS_URL: z.string().url(),
 
+  NEON_API_KEY: z.string().optional(),
+
   PORT: z.coerce.number().default(3000),
 
   ALLOWED_ORIGINS: z.string().optional(),

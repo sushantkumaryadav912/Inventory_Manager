@@ -31,6 +31,7 @@
     "extra": {
       "apiBaseUrl": "",
       "neonProjectId": "",
+      "neonApiKey": "",
       "environment": "",
       "eas": {
         "projectId": "your-eas-project-id"

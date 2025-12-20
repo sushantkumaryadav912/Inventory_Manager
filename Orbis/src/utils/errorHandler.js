@@ -15,7 +15,7 @@ export const handleApiError = (error, customMessage = null) => {
         message = data.message || 'Invalid request';
         break;
       case 401:
-        message = 'Session expired. Please login again.';
+        message = data.message || 'Unauthorized. Please login again.';
         break;
       case 403:
         message = 'You do not have permission to perform this action';

@@ -1,25 +1,26 @@
 import { Controller, Post, Req, UseGuards } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NeonAuthGuard } from './auth.guard';
+import { ApiKeyGuard } from '../common/guards/api-key.guard';
 
 @Controller('auth')
 export class AuthController {
   constructor(private readonly prisma: PrismaService) {}
 
   @Post('onboard')
-  @UseGuards(NeonAuthGuard)
+  @UseGuards(ApiKeyGuard, NeonAuthGuard)
   async onboard(@Req() req) {
     return this.syncUserAndShop(req.user);
   }
 
   @Post('signup')
-  @UseGuards(NeonAuthGuard)
+  @UseGuards(ApiKeyGuard, NeonAuthGuard)
   async signup(@Req() req) {
     return this.syncUserAndShop(req.user);
   }
 
   @Post('login')
-  @UseGuards(NeonAuthGuard)
+  @UseGuards(ApiKeyGuard, NeonAuthGuard)
   async login(@Req() req) {
     const { userId, email, name } = req.user;
 
