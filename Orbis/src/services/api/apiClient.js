@@ -1,11 +1,48 @@
 // src/services/api/apiClient.js
 import axios from 'axios';
+import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 import ENV from '../../config/env';
 import secureStorage from '../storage/secureStorage';
 import { handleApiError } from '../../utils/errorHandler';
 
+const getLanHost = () => {
+  const hostUri =
+    Constants.expoConfig?.hostUri ||
+    Constants.expoConfig?.debuggerHost ||
+    Constants.manifest2?.extra?.expoGo?.developer?.url ||
+    Constants.manifest?.debuggerHost;
+
+  if (!hostUri) {
+    return null;
+  }
+
+  return hostUri.split(':')[0];
+};
+
+const resolveApiBaseUrl = () => {
+  let baseUrl = ENV.API_BASE_URL?.trim();
+
+  if (!baseUrl) {
+    console.warn('API_BASE_URL is not set. Falling back to http://localhost:3000');
+    baseUrl = 'http://localhost:3000';
+  }
+
+  if (__DEV__ && baseUrl.includes('localhost')) {
+    const lanHost = getLanHost();
+
+    if (lanHost) {
+      baseUrl = baseUrl.replace('localhost', lanHost);
+    } else if (Platform.OS === 'android') {
+      baseUrl = baseUrl.replace('localhost', '10.0.2.2');
+    }
+  }
+
+  return baseUrl.replace(/\/+$/, '');
+};
+
 const apiClient = axios.create({
-  baseURL: ENV.API_BASE_URL,
+  baseURL: resolveApiBaseUrl(),
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
@@ -20,16 +57,17 @@ apiClient.interceptors.request.use(
       const authData = await secureStorage.getAuth();
       
       if (authData) {
-        const { neonToken, shopId } = authData;
-        
-        // Add Authorization header
-        if (neonToken) {
-          config.headers.Authorization = `Bearer ${neonToken}`;
+        const { accessToken, shopId, user } = authData;
+
+        // Add Authorization header using stored token
+        if (accessToken) {
+          config.headers.Authorization = `Bearer ${accessToken}`;
         }
-        
-        // Add x-shop-id header (required by ShopGuard)
-        if (shopId) {
-          config.headers['x-shop-id'] = shopId;
+
+        // Add x-shop-id header if available on the session
+        const resolvedShopId = shopId || user?.shopId;
+        if (resolvedShopId) {
+          config.headers['x-shop-id'] = resolvedShopId;
         }
       }
     } catch (error) {

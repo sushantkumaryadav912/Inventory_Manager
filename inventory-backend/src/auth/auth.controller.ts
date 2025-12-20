@@ -6,19 +6,70 @@ import { NeonAuthGuard } from './auth.guard';
 export class AuthController {
   constructor(private readonly prisma: PrismaService) {}
 
-  /**
-   * Called after Neon Auth login/signup.
-   * 1. Sync user (id, email, name)
-   * 2. If user has no shop  create shop + OWNER role
-   */
   @Post('onboard')
   @UseGuards(NeonAuthGuard)
   async onboard(@Req() req) {
+    return this.syncUserAndShop(req.user);
+  }
+
+  @Post('signup')
+  @UseGuards(NeonAuthGuard)
+  async signup(@Req() req) {
+    return this.syncUserAndShop(req.user);
+  }
+
+  @Post('login')
+  @UseGuards(NeonAuthGuard)
+  async login(@Req() req) {
     const { userId, email, name } = req.user;
 
+    // Keep Neon profile in sync even if the user already exists
+    await this.prisma.users.upsert({
+      where: { id: userId },
+      update: { email, name },
+      create: { id: userId, email, name },
+    });
+
+    const existingUserShop = await this.prisma.user_shops.findFirst({
+      where: { user_id: userId },
+    });
+
+    if (!existingUserShop) {
+      return {
+        success: true,
+        userId,
+        shopId: null,
+        role: null,
+        isNewShop: false,
+        requiresOnboarding: true,
+      };
+    }
+
+    return {
+      success: true,
+      userId,
+      shopId: existingUserShop.shop_id,
+      role: existingUserShop.role,
+      isNewShop: false,
+      requiresOnboarding: false,
+    };
+  }
+
+  /**
+   * Called after Neon Auth login/signup.
+   * 1. Sync user (id, email, name)
+   * 2. If user has no shop create shop + OWNER role
+   */
+  private async syncUserAndShop(user: {
+    userId: string;
+    email: string;
+    name?: string | null;
+  }) {
+    const { userId, email, name } = user;
+
     return this.prisma.$transaction(async (tx) => {
-      // 1. Upsert user (Neon Auth  app user)
-      const user = await tx.users.upsert({
+      // 1. Upsert user (Neon Auth -> app user)
+      const userRecord = await tx.users.upsert({
         where: { id: userId },
         update: {
           email,
@@ -50,7 +101,7 @@ export class AuthController {
       // 3. Create default shop
       const shop = await tx.shops.create({
         data: {
-          name: `${user.name ?? 'My'} Shop`,
+          name: `${userRecord.name ?? 'My'} Shop`,
           business_type: 'inventory',
         },
       });

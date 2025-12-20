@@ -1,36 +1,64 @@
 // src/services/api/authService.js
 import apiClient from './apiClient';
 
+/**
+ * AuthService
+ *
+ * These endpoints are implemented in YOUR backend,
+ * which internally uses Neon Auth for email/password. [web:105][web:114]
+ *
+ * Expected backend routes:
+ *  POST /auth/signup  { name, email, password }
+ *    -> { accessToken, user }
+ *
+ *  POST /auth/login   { email, password }
+ *    -> { accessToken, user }
+ *
+ *  GET  /auth/me      (Authorization: Bearer <accessToken>)
+ *    -> { user }
+ *
+ *  POST /auth/logout  (optional)
+ */
 class AuthService {
-  /**
-   * Onboard user with Neon token
-   * Backend creates user + shop + role if needed
-   */
-  async onboard(neonToken) {
-    try {
-      const response = await apiClient.post('/auth/onboard', null, {
-        headers: {
-          Authorization: `Bearer ${neonToken}`,
-        },
-      });
-      return response.data;
-    } catch (error) {
-      console.error('Onboard failed:', error);
-      throw error;
-    }
+  async signUp({ name, email, password }) {
+    const response = await apiClient.post('/auth/signup', {
+      name,
+      email,
+      password,
+    });
+    return response.data; // { accessToken, user }
   }
 
-  /**
-   * Validate current session (optional - call /auth/onboard again)
-   * Since no dedicated /auth/me endpoint exists
-   */
-  async validateSession(neonToken) {
+  async login({ email, password }) {
+    const response = await apiClient.post('/auth/login', {
+      email,
+      password,
+    });
+    return response.data; // { accessToken, user }
+  }
+
+  async getCurrentUser(accessToken) {
+    const response = await apiClient.get('/auth/me', {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+    return response.data; // { user }
+  }
+
+  async logout(accessToken) {
     try {
-      const response = await this.onboard(neonToken);
-      return response;
+      await apiClient.post(
+        '/auth/logout',
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      );
     } catch (error) {
-      console.error('Session validation failed:', error);
-      throw error;
+      console.error('Server logout failed:', error);
     }
   }
 }

@@ -1,40 +1,15 @@
-// src/navigation/AuthNavigation.jsx
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import LoginScreen from '../screens/auth/LoginScreen';
 import OnboardingScreen from '../screens/auth/OnboardingScreen';
 
-const Stack = createNativeStackNavigator();
+const AuthStack = createNativeStackNavigator();
 
-/**
- * Authentication flow navigator
- * Currently only Login screen
- * OnboardingScreen can be added for first-time users
- */
-const AuthNavigator = () => {
-  return (
-    <Stack.Navigator
-      screenOptions={{
-        headerShown: false,
-        animation: 'slide_from_right',
-      }}
-    >
-      <Stack.Screen 
-        name="Login" 
-        component={LoginScreen}
-        options={{
-          title: 'Login',
-        }}
-      />
-      <Stack.Screen 
-        name="Onboarding" 
-        component={OnboardingScreen}
-        options={{
-          title: 'Welcome',
-        }}
-      />
-    </Stack.Navigator>
-  );
-};
+const AuthNavigation = () => (
+  <AuthStack.Navigator screenOptions={{ headerShown: false }}>
+    <AuthStack.Screen name="Login" component={LoginScreen} />
+    <AuthStack.Screen name="Onboarding" component={OnboardingScreen} />
+  </AuthStack.Navigator>
+);
 
-export default AuthNavigator;
+export default AuthNavigation;

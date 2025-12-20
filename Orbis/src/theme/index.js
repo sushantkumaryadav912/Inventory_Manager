@@ -1,7 +1,9 @@
 // src/theme/index.js
-export { colors } from './colors';
-export { spacing, borderRadius, layout } from './spacing';
-export { typography } from './typography';
+import { colors } from './colors';
+import { spacing, borderRadius, layout } from './spacing';
+import { typography } from './typography';
+
+export { colors, spacing, borderRadius, layout, typography };
 
 export const theme = {
   colors,

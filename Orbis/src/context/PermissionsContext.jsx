@@ -1,5 +1,5 @@
 // src/context/PermissionsContext.jsx
-import React, { createContext, useMemo } from 'react';
+import React, { createContext, useMemo, useCallback } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { ROLES, PERMISSIONS } from '../utils/constants';
 

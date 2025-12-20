@@ -1,56 +1,139 @@
 // src/screens/auth/OnboardingScreen.jsx
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, Alert, ScrollView } from 'react-native';
 import { ScreenWrapper } from '../../components/layout';
-import { Button } from '../../components/ui';
+import { Button, Input } from '../../components/ui';
 import { colors, spacing, typography } from '../../theme';
+import { useAuth } from '../../hooks/useAuth';
 
 /**
- * Onboarding screen for new shops
- * Can be shown after successful authentication for first-time users
+ * OnboardingScreen used as Sign Up:
+ * - name
+ * - email
+ * - password
  */
 const OnboardingScreen = ({ navigation }) => {
-  const handleGetStarted = () => {
-    // Navigation will be handled by AppNavigator automatically
-    // This screen is just informational
+  const { signUp } = useAuth();
+  const [form, setForm] = useState({
+    name: '',
+    email: '',
+    password: '',
+    confirmPassword: '',
+  });
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleChange = (field, value) => {
+    setForm(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleGetStarted = async () => {
+    if (!form.name.trim() || !form.email.trim() || !form.password || !form.confirmPassword) {
+      Alert.alert('Missing details', 'Please fill in all fields.');
+      return;
+    }
+
+    if (form.password !== form.confirmPassword) {
+      Alert.alert('Password mismatch', 'Passwords do not match.');
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      await signUp({
+        name: form.name.trim(),
+        email: form.email.trim(),
+        password: form.password,
+      });
+      // After sign up, user is logged in; AppNavigator will switch to main app.
+    } catch (error) {
+      console.error('Sign up error:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const goToLogin = () => {
+    navigation.goBack();
   };
 
   return (
     <ScreenWrapper scrollable={false}>
       <View style={styles.container}>
-        <View style={styles.content}>
+        <ScrollView
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+        >
           <Text style={styles.emoji}>🎉</Text>
-          <Text style={styles.title}>Welcome to Orbis!</Text>
+          <Text style={styles.title}>Create your Orbis account</Text>
           <Text style={styles.subtitle}>
-            Your business management system is ready
+            Get started with your business management system
           </Text>
+
+          <View style={styles.form}>
+            <Input
+              label="Full Name"
+              placeholder="Your name"
+              value={form.name}
+              onChangeText={(v) => handleChange('name', v)}
+            />
+            <Input
+              label="Email"
+              placeholder="you@example.com"
+              value={form.email}
+              onChangeText={(v) => handleChange('email', v)}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+            <Input
+              label="Password"
+              placeholder="Create a password"
+              value={form.password}
+              onChangeText={(v) => handleChange('password', v)}
+              secureTextEntry
+            />
+            <Input
+              label="Confirm Password"
+              placeholder="Re-enter your password"
+              value={form.confirmPassword}
+              onChangeText={(v) => handleChange('confirmPassword', v)}
+              secureTextEntry
+            />
+
+            <Text
+              style={styles.linkText}
+              onPress={goToLogin}
+            >
+              Already have an account? Sign in
+            </Text>
+          </View>
 
           <View style={styles.steps}>
             <StepItem
               number="1"
               title="Set up your inventory"
-              description="Add products and track stock levels"
+              description="Add products and track stock levels."
             />
             <StepItem
               number="2"
               title="Manage purchases & sales"
-              description="Record orders and transactions"
+              description="Record orders and transactions."
             />
             <StepItem
               number="3"
               title="View reports"
-              description="Get insights about your business"
+              description="Get insights about your business."
             />
           </View>
-        </View>
+        </ScrollView>
 
         <View style={styles.actions}>
           <Button
             onPress={handleGetStarted}
+            loading={isLoading}
             fullWidth
             size="lg"
           >
-            Get Started
+            Create Account
           </Button>
         </View>
       </View>
@@ -77,9 +160,10 @@ const styles = StyleSheet.create({
     padding: spacing.xl,
   },
   content: {
-    flex: 1,
+    flexGrow: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingBottom: spacing.xl,
   },
   emoji: {
     fontSize: 80,
@@ -96,7 +180,12 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.lg,
     color: colors.text.secondary,
     textAlign: 'center',
-    marginBottom: spacing.xxl,
+    marginBottom: spacing.xl,
+  },
+  form: {
+    width: '100%',
+    gap: spacing.md,
+    marginBottom: spacing.xl,
   },
   steps: {
     width: '100%',
@@ -135,6 +224,12 @@ const styles = StyleSheet.create({
   },
   actions: {
     paddingTop: spacing.xl,
+  },
+  linkText: {
+    marginTop: spacing.sm,
+    fontSize: typography.fontSize.sm,
+    color: colors.primary[600],
+    textAlign: 'right',
   },
 });
 

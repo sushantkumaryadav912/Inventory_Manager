@@ -2,55 +2,45 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Image, Alert } from 'react-native';
 import { ScreenWrapper } from '../../components/layout';
-import { Button } from '../../components/ui';
+import { Button, Input } from '../../components/ui';
 import { useAuth } from '../../hooks/useAuth';
 import { colors, spacing, typography } from '../../theme';
 
-/**
- * Login Screen - Neon Auth Integration
- * TODO: Integrate actual Neon SDK for authentication
- */
-const LoginScreen = () => {
+const LoginScreen = ({ navigation }) => {
   const { login } = useAuth();
+  const [form, setForm] = useState({
+    email: '',
+    password: '',
+  });
   const [isLoading, setIsLoading] = useState(false);
 
+  const handleChange = (field, value) => {
+    setForm(prev => ({ ...prev, [field]: value }));
+  };
+
   const handleLogin = async () => {
+    if (!form.email.trim() || !form.password) {
+      Alert.alert('Missing details', 'Please enter email and password.');
+      return;
+    }
+
     try {
       setIsLoading(true);
-
-      // TODO: Replace with actual Neon SDK integration
-      // Example: const neonToken = await NeonAuth.signIn();
-      
-      // For development, using mock token
-      // Replace this with actual Neon authentication flow
-      const mockNeonToken = 'mock_neon_token_' + Date.now();
-      
-      Alert.alert(
-        'Development Mode',
-        'Using mock authentication. Integrate Neon SDK for production.',
-        [
-          {
-            text: 'Continue',
-            onPress: async () => {
-              try {
-                await login(mockNeonToken);
-              } catch (error) {
-                Alert.alert('Login Failed', error.message || 'Unable to login');
-              }
-            },
-          },
-          {
-            text: 'Cancel',
-            style: 'cancel',
-          },
-        ]
-      );
+      await login({
+        email: form.email.trim(),
+        password: form.password,
+      });
+      // After successful login, AppNavigator will switch to the main app based on isAuthenticated.
     } catch (error) {
       console.error('Login error:', error);
-      Alert.alert('Error', 'Failed to initiate login');
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const goToOnboarding = () => {
+    // Use Onboarding as a signup screen
+    navigation.navigate('Onboarding');
   };
 
   return (
@@ -64,27 +54,34 @@ const LoginScreen = () => {
           />
           <Text style={styles.title}>Welcome to Orbis</Text>
           <Text style={styles.subtitle}>
-            Premium Inventory & Business Management
+            Sign in with your email and password
           </Text>
         </View>
 
         <View style={styles.content}>
-          <View style={styles.features}>
-            <FeatureItem
-              icon="📦"
-              title="Inventory Management"
-              description="Track stock levels in real-time"
+          <View style={styles.form}>
+            <Input
+              label="Email"
+              placeholder="you@example.com"
+              value={form.email}
+              onChangeText={(v) => handleChange('email', v)}
+              keyboardType="email-address"
+              autoCapitalize="none"
             />
-            <FeatureItem
-              icon="📊"
-              title="Business Analytics"
-              description="Insights to grow your business"
+            <Input
+              label="Password"
+              placeholder="Enter your password"
+              value={form.password}
+              onChangeText={(v) => handleChange('password', v)}
+              secureTextEntry
             />
-            <FeatureItem
-              icon="🔒"
-              title="Secure & Reliable"
-              description="Enterprise-grade security"
-            />
+
+            <Text
+              style={styles.linkText}
+              onPress={goToOnboarding}
+            >
+              New here? Create an account
+            </Text>
           </View>
 
           <View style={styles.actions}>
@@ -94,11 +91,11 @@ const LoginScreen = () => {
               fullWidth
               size="lg"
             >
-              Sign In with Neon
+              Sign In
             </Button>
-            
+
             <Text style={styles.footerText}>
-              By continuing, you agree to our Terms of Service and Privacy Policy
+              By continuing, you agree to our Terms of Service and Privacy Policy.
             </Text>
           </View>
         </View>
@@ -106,16 +103,6 @@ const LoginScreen = () => {
     </ScreenWrapper>
   );
 };
-
-const FeatureItem = ({ icon, title, description }) => (
-  <View style={styles.featureItem}>
-    <Text style={styles.featureIcon}>{icon}</Text>
-    <View style={styles.featureText}>
-      <Text style={styles.featureTitle}>{title}</Text>
-      <Text style={styles.featureDescription}>{description}</Text>
-    </View>
-  </View>
-);
 
 const styles = StyleSheet.create({
   container: {
@@ -151,29 +138,8 @@ const styles = StyleSheet.create({
     paddingTop: spacing.xxl,
     paddingBottom: spacing.xl,
   },
-  features: {
-    gap: spacing.lg,
-  },
-  featureItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  featureIcon: {
-    fontSize: 40,
-    marginRight: spacing.md,
-  },
-  featureText: {
-    flex: 1,
-  },
-  featureTitle: {
-    fontSize: typography.fontSize.lg,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.text.primary,
-    marginBottom: spacing.xs,
-  },
-  featureDescription: {
-    fontSize: typography.fontSize.sm,
-    color: colors.text.secondary,
+  form: {
+    gap: spacing.md,
   },
   actions: {
     gap: spacing.md,
@@ -183,6 +149,12 @@ const styles = StyleSheet.create({
     color: colors.text.secondary,
     textAlign: 'center',
     lineHeight: typography.lineHeight.relaxed * typography.fontSize.xs,
+  },
+  linkText: {
+    marginTop: spacing.sm,
+    fontSize: typography.fontSize.sm,
+    color: colors.primary[600],
+    textAlign: 'right',
   },
 });
 

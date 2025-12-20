@@ -1,6 +1,5 @@
 // src/navigation/AppNavigator.jsx
-import React, { useEffect } from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import React from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { ActivityIndicator, View, StyleSheet } from 'react-native';
 import { useAuth } from '../hooks/useAuth';
@@ -24,12 +23,7 @@ const AppNavigator = () => {
     );
   }
 
-  return (
-    <NavigationContainer>
-      <StatusBar style="dark" />
-      {isAuthenticated ? <MainTabsNavigator /> : <AuthNavigator />}
-    </NavigationContainer>
-  );
+  return isAuthenticated ? <MainTabsNavigator /> : <AuthNavigator />;
 };
 
 const styles = StyleSheet.create({
