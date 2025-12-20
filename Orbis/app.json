@@ -1,0 +1,45 @@
+{
+  "expo": {
+    "name": "Orbis",
+    "slug": "orbis",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/images/splashscreen/splash.png",
+      "resizeMode": "cover",
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.yourcompany.orbis"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.yourcompany.orbis"
+    },
+    "web": {
+      "favicon": "./assets/images/favicon.jpg"
+    },
+    "extra": {
+      "apiBaseUrl": "",
+      "neonProjectId": "",
+      "environment": "",
+      "eas": {
+        "projectId": "your-eas-project-id"
+      }
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-asset",
+      "@react-native-community/datetimepicker"
+    ]
+  }
+}
