@@ -48,13 +48,13 @@ else
     echo "❌ Backend .env file missing"
 fi
 
-if grep -q "GET.*me" /app/inventory-backend/src/auth/auth.controller.ts; then
+if grep -q "@Get('me')" /app/inventory-backend/src/auth/auth.controller.ts; then
     echo "✅ /auth/me endpoint added"
 else
     echo "❌ /auth/me endpoint missing"
 fi
 
-if grep -q "POST.*logout" /app/inventory-backend/src/auth/auth.controller.ts; then
+if grep -q "@Post('logout')" /app/inventory-backend/src/auth/auth.controller.ts; then
     echo "✅ /auth/logout endpoint added"
 else
     echo "❌ /auth/logout endpoint missing"
