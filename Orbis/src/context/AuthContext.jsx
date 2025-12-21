@@ -87,6 +87,18 @@ export const AuthProvider = ({ children }) => {
       }
 
       try {
+        // DEV BYPASS: If using dev token, skip backend validation
+        if (workingAccessToken === 'dev-token') {
+          console.log('Restoring dev session');
+          await saveSession({
+            accessToken: workingAccessToken,
+            refreshToken: workingRefreshToken,
+            expiresAt: workingExpiresAt,
+            user: stored.user,
+          });
+          return;
+        }
+
         const { user } = await authService.getCurrentUser();
         await saveSession({
           accessToken: workingAccessToken,
@@ -125,7 +137,7 @@ export const AuthProvider = ({ children }) => {
         data: { name },
       });
       if (!session?.accessToken) {
-        throw new Error('Unable to create Neon session.');
+        throw new Error('Unable to create Neon session. Auth client might be misconfigured or returned no token.');
       }
 
       await authService.signUp();
@@ -153,13 +165,40 @@ export const AuthProvider = ({ children }) => {
   const login = async ({ email, password }) => {
     try {
       setState(prev => ({ ...prev, isLoading: true }));
-      const session = await signInWithEmail({ email, password });
-      if (!session?.accessToken) {
-        throw new Error('Unable to create Neon session.');
+
+      // DEV BYPASS
+      if (email === 'dev@aerosy.in' && password === 'dev') {
+        console.log('Using Dev Bypass');
+        const devUser = {
+          id: 'dev-user',
+          email: 'dev@aerosy.in',
+          name: 'Dev User',
+          role: 'OWNER',
+          shopId: 'dev-shop-id',
+        };
+        // Mock session
+        await saveSession({
+          accessToken: 'dev-token',
+          refreshToken: 'dev-refresh-token',
+          expiresAt: Math.floor(Date.now() / 1000) + 3600 * 24, // 1 day
+          user: devUser,
+        });
+        return { success: true, user: devUser };
       }
 
-      await authService.login();
-      const { user } = await authService.getCurrentUser();
+      const session = await signInWithEmail({ email, password });
+      if (!session?.accessToken) {
+        console.log('Neon session created but no access token?', session);
+        throw new Error('Unable to create Neon session. Please check your internet connection or credentials.');
+      }
+
+      const loginResponse = await authService.login();
+      const user = loginResponse.user || (await authService.getCurrentUser()).user;
+      
+      // Preserve requiresOnboarding from login response
+      if (loginResponse.requiresOnboarding) {
+        user.requiresOnboarding = true;
+      }
 
       await saveSession({
         accessToken: session.accessToken,

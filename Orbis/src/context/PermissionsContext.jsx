@@ -86,7 +86,8 @@ const ROLE_PERMISSIONS_MAP = {
 };
 
 export const PermissionsProvider = ({ children }) => {
-  const { role, isAuthenticated } = useAuth();
+  const { user, isAuthenticated } = useAuth();
+  const role = user?.role;
 
   /**
    * Get all permissions for current role

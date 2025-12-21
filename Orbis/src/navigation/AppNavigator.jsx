@@ -7,11 +7,13 @@ import AuthNavigator from './AuthNavigation';
 import MainTabsNavigator from './MainTabsNavigator';
 import { colors } from '../theme';
 
+import ShopSetupScreen from '../screens/auth/ShopSelectionScreen';
+
 /**
  * Root navigator - decides between Auth flow and Main app
  */
 const AppNavigator = () => {
-  const { isLoading, isAuthenticated } = useAuth();
+  const { isLoading, isAuthenticated, user } = useAuth();
 
   // Show loading screen while checking auth status
   if (isLoading) {
@@ -23,7 +25,14 @@ const AppNavigator = () => {
     );
   }
 
-  return isAuthenticated ? <MainTabsNavigator /> : <AuthNavigator />;
+  if (isAuthenticated) {
+    if (user?.requiresOnboarding) {
+      return <ShopSetupScreen />;
+    }
+    return <MainTabsNavigator />;
+  }
+
+  return <AuthNavigator />;
 };
 
 const styles = StyleSheet.create({

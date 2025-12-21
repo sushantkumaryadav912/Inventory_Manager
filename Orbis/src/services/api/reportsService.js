@@ -15,6 +15,11 @@ class ReportsService {
     }
   }
 
+  // Alias for getOverviewReport
+  getOverviewStats(params = {}) {
+    return this.getOverviewReport(params);
+  }
+
   /**
    * Get inventory report
    */

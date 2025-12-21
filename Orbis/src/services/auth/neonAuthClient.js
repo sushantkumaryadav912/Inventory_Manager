@@ -28,12 +28,17 @@ const warnMissingConfig = () => {
   }
 
   if (!resolveEmailRedirectUrl()) {
+    // This is not strictly blocking for all auth flows (e.g. login), but needed for signup/magic links often.
+    // We'll warn but maybe not fail initialization completely if only this is missing?
+    // However, the original code returned 'true' (error) if this was missing. 
+    // Let's keep it safe but strict for now, or relax if needed. 
+    // For now, I'll stick to the plan of "better debug info".
     missingKeys.push('NEON_EMAIL_REDIRECT_URL or API_BASE_URL');
   }
 
   if (missingKeys.length > 0) {
     console.warn(
-      `${missingKeys.join(', ')} ${missingKeys.length === 1 ? 'is' : 'are'} not configured. Neon auth calls will fail.`
+      `[NeonAuth] Missing configuration: ${missingKeys.join(', ')}. Authentication will not work.`
     );
     return true;
   }
@@ -43,14 +48,14 @@ const warnMissingConfig = () => {
 
 const neonClient = !warnMissingConfig()
   ? createClient({
-      auth: {
-        adapter: SupabaseAuthAdapter(),
-        url: ENV.NEON_AUTH_URL,
-      },
-      dataApi: {
-        url: ENV.NEON_DATA_API_URL,
-      },
-    })
+    auth: {
+      adapter: SupabaseAuthAdapter(),
+      url: ENV.NEON_AUTH_URL,
+    },
+    dataApi: {
+      url: ENV.NEON_DATA_API_URL,
+    },
+  })
   : null;
 
 const EMAIL_REDIRECT_URL = resolveEmailRedirectUrl();
