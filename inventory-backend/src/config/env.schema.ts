@@ -6,6 +6,8 @@ export const envSchema = z.object({
   DATABASE_URL: z.string().url(),
 
   NEON_JWKS_URL: z.string().url(),
+ 
+    NEON_CALLBACK_REDIRECT_URL: z.string().url().optional(),
 
   NEON_API_KEY: z.string().optional(),
 

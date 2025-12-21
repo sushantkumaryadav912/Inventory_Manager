@@ -1,6 +1,16 @@
-import { Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
+import {
+  BadRequestException,
+  Controller,
+  Get,
+  Post,
+  Query,
+  Req,
+  Res,
+  UseGuards,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NeonAuthGuard } from './auth.guard';
+import type { FastifyReply } from 'fastify';
 
 @Controller('auth')
 export class AuthController {
@@ -104,6 +114,39 @@ export class AuthController {
     return {
       success: true,
       message: 'Logged out successfully',
+    };
+  }
+
+  @Get('neon/callback')
+  async neonCallback(
+    @Query('code') code?: string,
+    @Query('state') state?: string,
+    @Res({ passthrough: true }) res?: FastifyReply,
+  ) {
+    res?.header('Access-Control-Allow-Origin', '*');
+    res?.header('Access-Control-Allow-Credentials', 'true');
+
+    if (!code || !state) {
+      throw new BadRequestException('Missing Neon callback parameters');
+    }
+
+    const redirectTarget = process.env.NEON_CALLBACK_REDIRECT_URL;
+
+    if (redirectTarget && res) {
+      const url = new URL(redirectTarget);
+      url.searchParams.set('code', code);
+      url.searchParams.set('state', state);
+      res.redirect(url.toString());
+      return;
+    }
+
+    res?.status(200);
+    return {
+      success: true,
+      message: 'Neon callback received',
+      code,
+      state,
+      timestamp: new Date().toISOString(),
     };
   }
 
