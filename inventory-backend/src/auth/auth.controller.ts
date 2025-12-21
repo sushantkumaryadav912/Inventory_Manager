@@ -1,4 +1,4 @@
-BadRequestException,
+import { BadRequestException,
   Body,
   Controller,
   Get,
@@ -11,6 +11,7 @@ BadRequestException,
 import { PrismaService } from '../prisma/prisma.service';
 import { NeonAuthGuard } from './auth.guard';
 import type { FastifyReply } from 'fastify';
+import { from } from 'rxjs';
 
 @Controller('auth')
 export class AuthController {
