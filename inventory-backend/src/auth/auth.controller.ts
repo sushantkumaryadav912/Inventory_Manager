@@ -7,6 +7,8 @@ import { BadRequestException,
   Req,
   Res,
   UseGuards,
+  Logger,
+  InternalServerErrorException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NeonAuthGuard } from './auth.guard';
@@ -15,7 +17,9 @@ import { from } from 'rxjs';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly prisma: PrismaService) { }
+  private readonly logger = new Logger(AuthController.name);
+
+  constructor(private readonly prisma: PrismaService) {}
 
   @Post('onboard')
   @UseGuards(NeonAuthGuard)
@@ -84,15 +88,49 @@ export class AuthController {
   @Post('login')
   @UseGuards(NeonAuthGuard)
   async login(@Req() req) {
-    // We use the same logic as signup/onboard to ensure:
-    // 1. User is synced safely (keeping existing name if token has none)
-    // 2. Shop is created if missing (so user always has a shop)
-    const result = await this.syncUserAndShop(req.user);
+    try {
+      const { userId, email, name } = req.user;
 
-    return {
-      ...result,
-      requiresOnboarding: result.isNewShop, // If new shop was created, show onboarding
-    };
+      this.logger.log(`Login attempt for user: ${email}`);
+
+      // Keep Neon profile in sync even if the user already exists
+      await this.prisma.users.upsert({
+        where: { id: userId },
+        update: { email, name, updated_at: new Date() },
+        create: { id: userId, email, name },
+      });
+
+      const existingUserShop = await this.prisma.user_shops.findFirst({
+        where: { user_id: userId },
+        include: { shops: true },
+      });
+
+      if (!existingUserShop) {
+        this.logger.log(`User ${email} requires onboarding`);
+        return {
+          success: true,
+          userId,
+          shopId: null,
+          role: null,
+          isNewShop: false,
+          requiresOnboarding: true,
+        };
+      }
+
+      this.logger.log(`User ${email} logged in successfully with shop ${existingUserShop.shop_id}`);
+      return {
+        success: true,
+        userId,
+        shopId: existingUserShop.shop_id,
+        shopName: existingUserShop.shops?.name,
+        role: existingUserShop.role,
+        isNewShop: false,
+        requiresOnboarding: false,
+      };
+    } catch (error) {
+      this.logger.error(`Login failed: ${error.message}`, error.stack);
+      throw new InternalServerErrorException('Login failed. Please try again.');
+    }
   }
 
   @Get('me')
