@@ -1,5 +1,5 @@
-import {
-  BadRequestException,
+BadRequestException,
+  Body,
   Controller,
   Get,
   Post,
@@ -18,8 +18,60 @@ export class AuthController {
 
   @Post('onboard')
   @UseGuards(NeonAuthGuard)
-  async onboard(@Req() req) {
-    return this.syncUserAndShop(req.user);
+  async onboard(@Req() req, @Body() body: { shopName: string; businessType?: string }) {
+    const { userId } = req.user;
+    const { shopName, businessType } = body;
+
+    if (!shopName) {
+      throw new BadRequestException('Shop name is required');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      // 1. Check if user already has an updated shop (OWNER role)
+      const userShop = await tx.user_shops.findFirst({
+        where: { user_id: userId, role: 'OWNER' },
+        include: { shops: true },
+      });
+
+      if (userShop?.shops) {
+        // Update existing shop (created by syncUserAndShop during login)
+        const updatedShop = await tx.shops.update({
+          where: { id: userShop.shops.id },
+          data: {
+            name: shopName,
+            business_type: businessType || userShop.shops.business_type,
+          },
+        });
+
+        return {
+          success: true,
+          shopId: updatedShop.id,
+          message: 'Shop set up successfully',
+        };
+      }
+
+      // 2. Fallback: Create new shop if for some reason it doesn't exist
+      const shop = await tx.shops.create({
+        data: {
+          name: shopName,
+          business_type: businessType || 'inventory',
+        },
+      });
+
+      await tx.user_shops.create({
+        data: {
+          user_id: userId,
+          shop_id: shop.id,
+          role: 'OWNER',
+        },
+      });
+
+      return {
+        success: true,
+        shopId: shop.id,
+        message: 'Shop created successfully',
+      };
+    });
   }
 
   @Post('signup')

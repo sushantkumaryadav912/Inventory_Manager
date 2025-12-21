@@ -14,7 +14,11 @@
     "sourceMap": true,
     "outDir": "./dist",
     "baseUrl": "./",
-    "types": ["node", "@prisma/client"],
+    "types": [
+      "node",
+      "@prisma/client",
+      "jest"
+    ],
     "incremental": true,
     "skipLibCheck": true,
     "strictNullChecks": true,
