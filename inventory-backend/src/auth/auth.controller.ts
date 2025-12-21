@@ -14,7 +14,7 @@ import type { FastifyReply } from 'fastify';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   @Post('onboard')
   @UseGuards(NeonAuthGuard)
@@ -31,37 +31,14 @@ export class AuthController {
   @Post('login')
   @UseGuards(NeonAuthGuard)
   async login(@Req() req) {
-    const { userId, email, name } = req.user;
-
-    // Keep Neon profile in sync even if the user already exists
-    await this.prisma.users.upsert({
-      where: { id: userId },
-      update: { email, name },
-      create: { id: userId, email, name },
-    });
-
-    const existingUserShop = await this.prisma.user_shops.findFirst({
-      where: { user_id: userId },
-    });
-
-    if (!existingUserShop) {
-      return {
-        success: true,
-        userId,
-        shopId: null,
-        role: null,
-        isNewShop: false,
-        requiresOnboarding: true,
-      };
-    }
+    // We use the same logic as signup/onboard to ensure:
+    // 1. User is synced safely (keeping existing name if token has none)
+    // 2. Shop is created if missing (so user always has a shop)
+    const result = await this.syncUserAndShop(req.user);
 
     return {
-      success: true,
-      userId,
-      shopId: existingUserShop.shop_id,
-      role: existingUserShop.role,
-      isNewShop: false,
-      requiresOnboarding: false,
+      ...result,
+      requiresOnboarding: result.isNewShop, // If new shop was created, show onboarding
     };
   }
 
@@ -83,6 +60,7 @@ export class AuthController {
     });
 
     if (!user) {
+      // If user doesn't exist in our DB yet, return basic info
       return {
         user: {
           id: userId,
@@ -100,7 +78,7 @@ export class AuthController {
       user: {
         id: user.id,
         email: user.email,
-        name: user.name,
+        name: user.name, // Use DB name as it might be more up to date
         shopId: userShop?.shop_id || null,
         shopName: userShop?.shops?.name || null,
         role: userShop?.role || null,
@@ -123,8 +101,11 @@ export class AuthController {
     @Query('state') state?: string,
     @Res({ passthrough: true }) res?: FastifyReply,
   ) {
-    res?.header('Access-Control-Allow-Origin', '*');
-    res?.header('Access-Control-Allow-Credentials', 'true');
+    // Ensure headers for CORS are set if this is called directly from browser to API
+    if (res) {
+      res.header('Access-Control-Allow-Origin', '*');
+      res.header('Access-Control-Allow-Credentials', 'true');
+    }
 
     if (!code || !state) {
       throw new BadRequestException('Missing Neon callback parameters');
@@ -132,15 +113,27 @@ export class AuthController {
 
     const redirectTarget = process.env.NEON_CALLBACK_REDIRECT_URL;
 
+    // Safely construct redirect URL
     if (redirectTarget && res) {
-      const url = new URL(redirectTarget);
-      url.searchParams.set('code', code);
-      url.searchParams.set('state', state);
-      res.redirect(url.toString());
-      return;
+      try {
+        const url = new URL(redirectTarget);
+        url.searchParams.set('code', code);
+        url.searchParams.set('state', state);
+
+        // Use 302 Found for temporary redirect
+        res.status(302).redirect(url.toString());
+        return;
+      } catch (e) {
+        // Fallback if URL is invalid
+        console.error('Invalid NEON_CALLBACK_REDIRECT_URL', e);
+      }
     }
 
-    res?.status(200);
+    // Fallback response if no redirect (e.g. mobile deep linking handled differently or misconfig)
+    if (res) {
+      res.status(200);
+    }
+
     return {
       success: true,
       message: 'Neon callback received',
@@ -168,7 +161,7 @@ export class AuthController {
         where: { id: userId },
         update: {
           email,
-          name,
+          ...(name ? { name } : {}), // Only update name if provided (don't overwrite with null)
         },
         create: {
           id: userId,
