@@ -7,6 +7,8 @@ import {
   Req,
   Res,
   UseGuards,
+  Logger,
+  InternalServerErrorException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NeonAuthGuard } from './auth.guard';
@@ -14,6 +16,8 @@ import type { FastifyReply } from 'fastify';
 
 @Controller('auth')
 export class AuthController {
+  private readonly logger = new Logger(AuthController.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
   @Post('onboard')
