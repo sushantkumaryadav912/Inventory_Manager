@@ -55,6 +55,58 @@ export class AuthController {
     };
   }
 
+  @Get('me')
+  @UseGuards(NeonAuthGuard)
+  async getCurrentUser(@Req() req) {
+    const { userId, email, name } = req.user;
+
+    // Get user with shop relationship
+    const user = await this.prisma.users.findUnique({
+      where: { id: userId },
+      include: {
+        user_shops: {
+          include: {
+            shops: true,
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      return {
+        user: {
+          id: userId,
+          email,
+          name,
+          shopId: null,
+          role: null,
+        },
+      };
+    }
+
+    const userShop = user.user_shops?.[0];
+
+    return {
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        shopId: userShop?.shop_id || null,
+        shopName: userShop?.shops?.name || null,
+        role: userShop?.role || null,
+      },
+    };
+  }
+
+  @Post('logout')
+  @UseGuards(NeonAuthGuard)
+  async logout() {
+    return {
+      success: true,
+      message: 'Logged out successfully',
+    };
+  }
+
   /**
    * Called after Neon Auth login/signup.
    * 1. Sync user (id, email, name)
