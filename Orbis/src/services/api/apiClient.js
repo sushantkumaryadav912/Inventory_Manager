@@ -1,6 +1,6 @@
 // src/services/api/apiClient.js
 import axios from 'axios';
-import { Platform } from 'react-native';
+import { Alert, Platform } from 'react-native';
 import Constants from 'expo-constants';
 import ENV from '../../config/env';
 import secureStorage from '../storage/secureStorage';
@@ -50,9 +50,6 @@ const apiClient = axios.create({
   },
 });
 
-const NEON_PROJECT_ID = ENV.NEON_PROJECT_ID?.trim();
-const NEON_API_KEY = ENV.NEON_API_KEY?.trim();
-
 // Request interceptor - inject auth headers
 apiClient.interceptors.request.use(
   async (config) => {
@@ -72,14 +69,6 @@ apiClient.interceptors.request.use(
         if (resolvedShopId) {
           config.headers['x-shop-id'] = resolvedShopId;
         }
-      }
-
-      if (NEON_PROJECT_ID) {
-        config.headers['x-neon-project-id'] = NEON_PROJECT_ID;
-      }
-
-      if (NEON_API_KEY) {
-        config.headers['x-neon-api-key'] = NEON_API_KEY;
       }
     } catch (error) {
       console.error('Failed to inject auth headers:', error);
@@ -104,6 +93,10 @@ apiClient.interceptors.response.use(
       if (storedAuth?.accessToken) {
         console.log('Session expired, clearing auth...');
         await secureStorage.clearAuth();
+        Alert.alert(
+          'Session expired',
+          'Please sign in again to continue.'
+        );
         // Optionally: trigger navigation to login (requires navigation ref)
       }
     }

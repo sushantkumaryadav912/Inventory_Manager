@@ -5,7 +5,7 @@ import Constants from 'expo-constants';
 const ENV = {
   API_BASE_URL: Constants.expoConfig?.extra?.apiBaseUrl || process.env.API_BASE_URL || 'http://localhost:3000',
   NEON_PROJECT_ID: Constants.expoConfig?.extra?.neonProjectId || process.env.NEON_PROJECT_ID,
-  NEON_API_KEY: Constants.expoConfig?.extra?.neonApiKey || process.env.NEON_API_KEY,
+  NEON_AUTH_URL: Constants.expoConfig?.extra?.neonAuthUrl || process.env.NEON_AUTH_URL,
   ENV: Constants.expoConfig?.extra?.environment || process.env.NODE_ENV || 'development',
 };
 

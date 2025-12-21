@@ -1,5 +1,6 @@
 // src/services/api/authService.js
 import apiClient from './apiClient';
+import secureStorage from '../storage/secureStorage';
 
 /**
  * AuthService
@@ -8,11 +9,8 @@ import apiClient from './apiClient';
  * which internally uses Neon Auth for email/password. [web:105][web:114]
  *
  * Expected backend routes:
- *  POST /auth/signup  { name, email, password }
- *    -> { accessToken, user }
- *
- *  POST /auth/login   { email, password }
- *    -> { accessToken, user }
+ *  POST /auth/signup
+ *  POST /auth/login
  *
  *  GET  /auth/me      (Authorization: Bearer <accessToken>)
  *    -> { user }
@@ -20,46 +18,32 @@ import apiClient from './apiClient';
  *  POST /auth/logout  (optional)
  */
 class AuthService {
-  async signUp({ name, email, password }) {
-    const response = await apiClient.post('/auth/signup', {
-      name,
-      email,
-      password,
-    });
-    return response.data; // { accessToken, user }
-  }
-
-  async login({ email, password }) {
-    const response = await apiClient.post('/auth/login', {
-      email,
-      password,
-    });
-    return response.data; // { accessToken, user }
-  }
-
-  async getCurrentUser(accessToken) {
-    const response = await apiClient.get('/auth/me', {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    });
+  async signUp() {
+    const response = await apiClient.post('/auth/signup');
     return response.data; // { user }
   }
 
-  async logout(accessToken) {
+  async login() {
+    const response = await apiClient.post('/auth/login');
+    return response.data; // { user }
+  }
+
+  async getCurrentUser() {
+    const response = await apiClient.get('/auth/me');
+    return response.data; // { user }
+  }
+
+  async logout() {
     try {
-      await apiClient.post(
-        '/auth/logout',
-        {},
-        {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-        }
-      );
+      await apiClient.post('/auth/logout');
     } catch (error) {
       console.error('Server logout failed:', error);
     }
+  }
+
+  async getToken() {
+    const stored = await secureStorage.getAuth();
+    return stored?.accessToken || null;
   }
 }
 
