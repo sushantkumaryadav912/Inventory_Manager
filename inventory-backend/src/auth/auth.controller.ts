@@ -35,38 +35,49 @@ export class AuthController {
   @Post('login')
   @UseGuards(NeonAuthGuard)
   async login(@Req() req) {
-    const { userId, email, name } = req.user;
+    try {
+      const { userId, email, name } = req.user;
 
-    // Keep Neon profile in sync even if the user already exists
-    await this.prisma.users.upsert({
-      where: { id: userId },
-      update: { email, name },
-      create: { id: userId, email, name },
-    });
+      this.logger.log(`Login attempt for user: ${email}`);
 
-    const existingUserShop = await this.prisma.user_shops.findFirst({
-      where: { user_id: userId },
-    });
+      // Keep Neon profile in sync even if the user already exists
+      await this.prisma.users.upsert({
+        where: { id: userId },
+        update: { email, name, updated_at: new Date() },
+        create: { id: userId, email, name },
+      });
 
-    if (!existingUserShop) {
+      const existingUserShop = await this.prisma.user_shops.findFirst({
+        where: { user_id: userId },
+        include: { shops: true },
+      });
+
+      if (!existingUserShop) {
+        this.logger.log(`User ${email} requires onboarding`);
+        return {
+          success: true,
+          userId,
+          shopId: null,
+          role: null,
+          isNewShop: false,
+          requiresOnboarding: true,
+        };
+      }
+
+      this.logger.log(`User ${email} logged in successfully with shop ${existingUserShop.shop_id}`);
       return {
         success: true,
         userId,
-        shopId: null,
-        role: null,
+        shopId: existingUserShop.shop_id,
+        shopName: existingUserShop.shops?.name,
+        role: existingUserShop.role,
         isNewShop: false,
-        requiresOnboarding: true,
+        requiresOnboarding: false,
       };
+    } catch (error) {
+      this.logger.error(`Login failed: ${error.message}`, error.stack);
+      throw new InternalServerErrorException('Login failed. Please try again.');
     }
-
-    return {
-      success: true,
-      userId,
-      shopId: existingUserShop.shop_id,
-      role: existingUserShop.role,
-      isNewShop: false,
-      requiresOnboarding: false,
-    };
   }
 
   @Get('me')
