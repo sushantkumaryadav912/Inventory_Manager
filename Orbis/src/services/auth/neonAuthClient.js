@@ -97,6 +97,10 @@ export const signUpWithEmail = async ({ email, password, data }) => {
   if (data) {
     options.data = data;
   }
+
+  console.log('[NeonAuth] Signing up with redirect URL:', options.emailRedirectTo || '(none)');
+  console.log('[NeonAuth] Using Auth options:', JSON.stringify(options, null, 2));
+
   const result = await neonClient.auth.signUp({
     email,
     password,
