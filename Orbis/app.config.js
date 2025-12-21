@@ -16,6 +16,8 @@ module.exports = ({ config }) => {
       apiBaseUrl: getEnv('API_BASE_URL', extraDefaults.apiBaseUrl || ''),
       neonProjectId: getEnv('NEON_PROJECT_ID', extraDefaults.neonProjectId || ''),
       neonAuthUrl: getEnv('NEON_AUTH_URL', extraDefaults.neonAuthUrl || ''),
+      neonDataApiUrl: getEnv('NEON_DATA_API_URL', extraDefaults.neonDataApiUrl || ''),
+      neonEmailRedirectUrl: getEnv('NEON_EMAIL_REDIRECT_URL', extraDefaults.neonEmailRedirectUrl || ''),
       environment: getEnv('NODE_ENV', extraDefaults.environment || 'development'),
       eas: {
         ...easDefaults,

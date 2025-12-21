@@ -1,19 +1,59 @@
-import { createClient } from '@neondatabase/neon-js';
+import { createClient, SupabaseAuthAdapter } from '@neondatabase/neon-js';
 import ENV from '../../config/env';
 
+const normalizeBaseUrl = (value) => {
+  if (!value) return '';
+  return value.endsWith('/') ? value.slice(0, -1) : value;
+};
+
+const resolveEmailRedirectUrl = () => {
+  if (ENV.NEON_EMAIL_REDIRECT_URL) {
+    return ENV.NEON_EMAIL_REDIRECT_URL;
+  }
+  if (ENV.API_BASE_URL) {
+    return `${normalizeBaseUrl(ENV.API_BASE_URL)}/auth/neon/callback`;
+  }
+  return '';
+};
+
 const warnMissingConfig = () => {
+  const missingKeys = [];
+
   if (!ENV.NEON_AUTH_URL) {
-    console.warn('NEON_AUTH_URL is not configured. Neon auth calls will fail.');
+    missingKeys.push('NEON_AUTH_URL');
+  }
+
+  if (!ENV.NEON_DATA_API_URL) {
+    missingKeys.push('NEON_DATA_API_URL');
+  }
+
+  if (!resolveEmailRedirectUrl()) {
+    missingKeys.push('NEON_EMAIL_REDIRECT_URL or API_BASE_URL');
+  }
+
+  if (missingKeys.length > 0) {
+    console.warn(
+      `${missingKeys.join(', ')} ${missingKeys.length === 1 ? 'is' : 'are'} not configured. Neon auth calls will fail.`
+    );
     return true;
   }
+
   return false;
 };
 
 const neonClient = !warnMissingConfig()
   ? createClient({
-      authUrl: ENV.NEON_AUTH_URL,
+      auth: {
+        adapter: SupabaseAuthAdapter(),
+        url: ENV.NEON_AUTH_URL,
+      },
+      dataApi: {
+        url: ENV.NEON_DATA_API_URL,
+      },
     })
   : null;
+
+const EMAIL_REDIRECT_URL = resolveEmailRedirectUrl();
 
 const normalizeSession = (session) => {
   if (!session) return null;
@@ -45,10 +85,17 @@ export const signUpWithEmail = async ({ email, password, data }) => {
   if (!neonClient) {
     throw new Error('Neon auth client is not initialized.');
   }
+  const options = {};
+  if (EMAIL_REDIRECT_URL) {
+    options.emailRedirectTo = EMAIL_REDIRECT_URL;
+  }
+  if (data) {
+    options.data = data;
+  }
   const result = await neonClient.auth.signUp({
     email,
     password,
-    data,
+    options,
   });
   return handleResult(result);
 };
@@ -60,6 +107,7 @@ export const signInWithEmail = async ({ email, password }) => {
   const result = await neonClient.auth.signInWithPassword({
     email,
     password,
+    options: EMAIL_REDIRECT_URL ? { emailRedirectTo: EMAIL_REDIRECT_URL } : undefined,
   });
   return handleResult(result);
 };
