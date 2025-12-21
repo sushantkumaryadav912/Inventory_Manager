@@ -7,9 +7,9 @@ export class NeonAuthGuard extends AuthGuard('neon') {
         const request = context.switchToHttp().getRequest();
         const authHeader = request.headers.authorization;
 
-        // DEV BYPASS: Allow specific token in non-prod environments
+        // DEV BYPASS: Allow specific token in non-prod environments OR if explicitly enabled
         if (
-            process.env.NODE_ENV !== 'production' &&
+            (process.env.NODE_ENV !== 'production' || process.env.ENABLE_DEV_AUTH === 'true') &&
             authHeader === 'Bearer dev-token'
         ) {
             // Inject mock user
