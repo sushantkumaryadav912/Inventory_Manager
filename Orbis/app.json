@@ -34,7 +34,6 @@
       "neonProjectId": "",
       "neonAuthUrl": "",
       "neonDataApiUrl": "",
-      "neonEmailRedirectUrl": "",
       "environment": "",
       "eas": {
         "projectId": "your-eas-project-id"

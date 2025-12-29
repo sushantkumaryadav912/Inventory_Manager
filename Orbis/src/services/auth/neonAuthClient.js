@@ -1,4 +1,6 @@
 import { createClient, SupabaseAuthAdapter } from '@neondatabase/neon-js';
+import { Platform } from 'react-native';
+
 import ENV from '../../config/env';
 
 const normalizeBaseUrl = (value) => {
@@ -16,6 +18,13 @@ const resolveEmailRedirectUrl = () => {
   return '';
 };
 
+const resolveWebEmailRedirectUrl = () => {
+  if (Platform.OS !== 'web') {
+    return '';
+  }
+  return resolveEmailRedirectUrl();
+};
+
 const warnMissingConfig = () => {
   const missingKeys = [];
 
@@ -27,7 +36,7 @@ const warnMissingConfig = () => {
     missingKeys.push('NEON_DATA_API_URL');
   }
 
-  if (!resolveEmailRedirectUrl()) {
+  if (Platform.OS === 'web' && !resolveEmailRedirectUrl()) {
     // This is not strictly blocking for all auth flows (e.g. login), but needed for signup/magic links often.
     // We'll warn but maybe not fail initialization completely if only this is missing?
     // However, the original code returned 'true' (error) if this was missing. 
@@ -58,7 +67,7 @@ const neonClient = !warnMissingConfig()
   })
   : null;
 
-const EMAIL_REDIRECT_URL = resolveEmailRedirectUrl();
+const EMAIL_REDIRECT_URL = resolveWebEmailRedirectUrl();
 
 const normalizeSession = (session) => {
   if (!session) return null;
@@ -113,10 +122,12 @@ export const signInWithEmail = async ({ email, password }) => {
   if (!neonClient) {
     throw new Error('Neon auth client is not initialized.');
   }
+
+  const isWeb = Platform.OS === 'web';
   const result = await neonClient.auth.signInWithPassword({
     email,
     password,
-    options: EMAIL_REDIRECT_URL ? { emailRedirectTo: EMAIL_REDIRECT_URL } : undefined,
+    ...(isWeb && EMAIL_REDIRECT_URL ? { options: { emailRedirectTo: EMAIL_REDIRECT_URL } } : {}),
   });
   return handleResult(result);
 };
