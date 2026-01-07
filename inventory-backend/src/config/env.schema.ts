@@ -6,8 +6,13 @@ export const envSchema = z.object({
   DATABASE_URL: z.string().url(),
 
   NEON_JWKS_URL: z.string().url(),
- 
-    NEON_CALLBACK_REDIRECT_URL: z.string().url().optional(),
+
+  NEON_CALLBACK_REDIRECT_URL: z.string().url().optional(),
+
+  // Used by backend-only Neon Auth proxy endpoints (/auth/mobile/*)
+  // Kept optional to avoid breaking existing deployments until configured.
+  NEON_AUTH_BASE_URL: z.string().url().optional(),
+  NEON_AUTH_ORIGIN: z.string().url().optional(),
 
   NEON_API_KEY: z.string().optional(),
 
