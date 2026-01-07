@@ -194,7 +194,7 @@ export class OtpService {
       });
 
       // Send OTP via email
-      await this.emailService.sendPasswordResetEmail(email, otpCode, user.name);
+      await this.emailService.sendPasswordResetEmail(email, otpCode, user.name ?? undefined);
 
       this.logger.log(`Password reset OTP requested for ${email}`);
 
