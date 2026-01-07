@@ -5,34 +5,53 @@ import secureStorage from '../storage/secureStorage';
 /**
  * AuthService
  *
- * These endpoints are implemented in YOUR backend,
- * which internally uses Neon Auth for email/password. [web:105][web:114]
+ * Communicates with backend auth endpoints using custom JWT authentication.
  *
  * Expected backend routes:
- *  POST /auth/signup
- *  POST /auth/login
+ *  POST /auth/signup   (body: { email, password, name })
+ *  POST /auth/login    (body: { email, password })
  *
- *  GET  /auth/me      (Authorization: Bearer <accessToken>)
+ *  GET  /auth/me       (Authorization: Bearer <accessToken>)
  *    -> { user }
  *
- *  POST /auth/logout  (optional)
+ *  POST /auth/logout   (optional)
+ *  POST /auth/refresh  (body: { refreshToken })
  */
 class AuthService {
-  async signUp() {
-    const response = await apiClient.post('/auth/signup');
-    return response.data; // { user }
+  /**
+   * Sign up with email and password
+   */
+  async signUp(email, password, name) {
+    const response = await apiClient.post('/auth/signup', {
+      email,
+      password,
+      name,
+    });
+    return response.data; // { token, user, expiresIn }
   }
 
-  async login() {
-    const response = await apiClient.post('/auth/login');
-    return response.data; // { user }
+  /**
+   * Login with email and password
+   */
+  async login(email, password) {
+    const response = await apiClient.post('/auth/login', {
+      email,
+      password,
+    });
+    return response.data; // { token, user, expiresIn }
   }
 
+  /**
+   * Get current user information
+   */
   async getCurrentUser() {
     const response = await apiClient.get('/auth/me');
     return response.data; // { user }
   }
 
+  /**
+   * Logout (invalidate session)
+   */
   async logout() {
     try {
       await apiClient.post('/auth/logout');
@@ -41,6 +60,45 @@ class AuthService {
     }
   }
 
+  /**
+   * Request OTP (for email verification or password reset)
+   */
+  async requestOtp(email, type = 'email_verification', name) {
+    const response = await apiClient.post('/auth/request-otp', {
+      email,
+      type,
+      name,
+    });
+    return response.data; // { success, message }
+  }
+
+  /**
+   * Verify OTP code
+   */
+  async verifyOtp(email, otpCode, type = 'email_verification') {
+    const response = await apiClient.post('/auth/verify-otp', {
+      email,
+      otp_code: otpCode,
+      type,
+    });
+    return response.data; // { success, message }
+  }
+
+  /**
+   * Reset password using OTP
+   */
+  async resetPassword(email, otpCode, newPassword) {
+    const response = await apiClient.post('/auth/reset-password', {
+      email,
+      otp_code: otpCode,
+      new_password: newPassword,
+    });
+    return response.data; // { success, message }
+  }
+
+  /**
+   * Get stored access token
+   */
   async getToken() {
     const stored = await secureStorage.getAuth();
     return stored?.accessToken || null;

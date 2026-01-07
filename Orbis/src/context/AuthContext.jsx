@@ -11,17 +11,17 @@ import { authService } from '../services/api';
 import {
   signUpWithEmail,
   signInWithEmail,
-  refreshNeonSession,
-  signOutFromNeon,
-} from '../services/auth/neonAuthClient';
+  refreshSession,
+  signOut,
+  getCurrentSession,
+} from '../services/auth/customAuthClient';
 
 export const AuthContext = createContext(null);
 
 /**
  * AuthProvider
  *
- * Stores an accessToken (JWT / Neon session token) and user object,
- * coming from your backend which uses Neon Auth under the hood. [web:105]
+ * Stores an accessToken (JWT) and user object from custom auth backend.
  */
 export const AuthProvider = ({ children }) => {
   const [state, setState] = useState({
@@ -70,12 +70,12 @@ export const AuthProvider = ({ children }) => {
 
       if (isTokenExpired(workingExpiresAt) && workingRefreshToken) {
         try {
-          const refreshed = await refreshNeonSession(workingRefreshToken);
+          const refreshed = await refreshSession(workingRefreshToken);
           workingAccessToken = refreshed?.accessToken || workingAccessToken;
           workingRefreshToken = refreshed?.refreshToken || workingRefreshToken;
           workingExpiresAt = refreshed?.expiresAt || null;
         } catch (refreshError) {
-          console.error('Failed to refresh Neon session:', refreshError);
+          console.error('Failed to refresh session:', refreshError);
           Alert.alert('Session expired', 'Please sign in again.');
           await clearSession();
           return;
@@ -137,7 +137,7 @@ export const AuthProvider = ({ children }) => {
         data: { name },
       });
       if (!session?.accessToken) {
-        throw new Error('Unable to create Neon session. Auth client might be misconfigured or returned no token.');
+        throw new Error('Unable to create session. Auth service might be misconfigured or returned no token.');
       }
 
       await authService.signUp();
@@ -188,8 +188,8 @@ export const AuthProvider = ({ children }) => {
 
       const session = await signInWithEmail({ email, password });
       if (!session?.accessToken) {
-        console.log('Neon session created but no access token?', session);
-        throw new Error('Unable to create Neon session. Please check your internet connection or credentials.');
+        console.log('Session created but no access token?', session);
+        throw new Error('Unable to create session. Please check your internet connection or credentials.');
       }
 
       const loginResponse = await authService.login();
@@ -222,7 +222,7 @@ export const AuthProvider = ({ children }) => {
   const logout = async () => {
     try {
       await authService.logout();
-      await signOutFromNeon();
+      await signOut(state.accessToken);
     } catch (error) {
       console.error('Server logout error:', error);
     } finally {

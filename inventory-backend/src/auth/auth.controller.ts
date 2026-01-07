@@ -1,28 +1,411 @@
-import { BadRequestException,
+import {
+  BadRequestException,
   Body,
   Controller,
   Get,
   Post,
-  Query,
-  Req,
-  Res,
   UseGuards,
   Logger,
-  InternalServerErrorException,
+  Req,
+  Query,
 } from '@nestjs/common';
+import { AuthService } from './auth.service';
+import { OtpService } from './otp.service';
+import { EmailValidatorService } from './email-validator.service';
+import { JwtAuthGuard } from './jwt.guard';
 import { PrismaService } from '../prisma/prisma.service';
-import { NeonAuthGuard } from './auth.guard';
-import type { FastifyReply } from 'fastify';
-import { from } from 'rxjs';
 
 @Controller('auth')
 export class AuthController {
   private readonly logger = new Logger(AuthController.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly otpService: OtpService,
+    private readonly emailValidatorService: EmailValidatorService,
+    private readonly prisma: PrismaService,
+  ) {}
+
+  @Post('signup')
+  async signup(@Body() body: { email: string; password: string; name?: string }) {
+    try {
+      const { email, password, name } = body;
+
+      if (!email || !password) {
+        throw new BadRequestException('Email and password are required');
+      }
+
+      // Step 1: Validate email with Abstract API
+      const validationResult = await this.emailValidatorService.validateEmail(email);
+      if (!validationResult.isValid) {
+        throw new BadRequestException(validationResult.reason || 'Invalid email address');
+      }
+
+      // Step 2: Check if user already exists
+      const existingUser = await this.prisma.users.findUnique({
+        where: { email },
+      });
+      if (existingUser) {
+        throw new BadRequestException('User with this email already exists');
+      }
+
+      // Step 3: Create user with password (email not verified yet)
+      const result = await this.authService.signup(email, password, name);
+
+      // Step 4: Generate verification token and send verification email
+      const verificationToken = this.emailValidatorService.generateVerificationToken();
+      const verificationUrl = this.emailValidatorService.getVerificationUrl(verificationToken);
+      const tokenExpiresAt = new Date(Date.now() + this.emailValidatorService.getVerificationTokenExpiry());
+
+      // Update user with verification token
+      await this.prisma.users.update({
+        where: { id: result.user.id },
+        data: {
+          verification_token: verificationToken,
+          verification_token_expires_at: tokenExpiresAt,
+        },
+      });
+
+      // Log verification attempt
+      await this.prisma.email_verification_logs.create({
+        data: {
+          user_id: result.user.id,
+          email: email,
+          verification_token: verificationToken,
+          token_expires_at: tokenExpiresAt,
+          abstract_api_result: JSON.stringify(validationResult.details || {}),
+        },
+      });
+
+      // Step 5: Send verification email via Brevo
+      await this.emailValidatorService.sendVerificationEmail(
+        email,
+        name || email.split('@')[0],
+        verificationToken,
+        verificationUrl,
+      );
+
+      // Sync user and shop
+      await this.syncUserAndShop({
+        userId: result.user.id,
+        email: result.user.email,
+        name: result.user.name,
+      });
+
+      return {
+        ...result,
+        message: 'Signup successful! Please check your email to verify your account.',
+        verificationEmailSent: true,
+        emailVerified: false,
+        requiresEmailVerification: true,
+      };
+    } catch (error) {
+      this.logger.error(`Signup failed: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+
+  /**
+   * Verify email using token sent to user's email
+   */
+  @Post('verify-email')
+  async verifyEmail(@Body() body: { token: string }) {
+    try {
+      const { token } = body;
+
+      if (!token) {
+        throw new BadRequestException('Verification token is required');
+      }
+
+      // Find verification log
+      const verificationLog = await this.prisma.email_verification_logs.findFirst({
+        where: {
+          verification_token: token,
+          is_verified: false,
+        },
+      });
+
+      if (!verificationLog) {
+        throw new BadRequestException('Invalid or already used verification token');
+      }
+
+      // Check if token has expired
+      if (new Date() > verificationLog.token_expires_at) {
+        throw new BadRequestException('Verification token has expired. Please sign up again.');
+      }
+
+      // Mark as verified
+      await this.prisma.email_verification_logs.update({
+        where: { id: verificationLog.id },
+        data: {
+          is_verified: true,
+          verified_at: new Date(),
+        },
+      });
+
+      // Update user
+      const user = await this.prisma.users.update({
+        where: { id: verificationLog.user_id },
+        data: {
+          email_verified: true,
+          email_verified_at: new Date(),
+          verification_token: null,
+          verification_token_expires_at: null,
+        },
+      });
+
+      this.logger.log(`Email verified successfully for user: ${user.email}`);
+
+      return {
+        success: true,
+        message: 'Email verified successfully! You can now log in.',
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+        },
+      };
+    } catch (error) {
+      this.logger.error(`Email verification failed: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+
+  /**
+   * Resend verification email
+   */
+  @Post('resend-verification-email')
+  async resendVerificationEmail(@Body() body: { email: string }) {
+    try {
+      const { email } = body;
+
+      if (!email) {
+        throw new BadRequestException('Email is required');
+      }
+
+      // Find user
+      const user = await this.prisma.users.findUnique({
+        where: { email },
+      });
+
+      if (!user) {
+        throw new BadRequestException('User not found');
+      }
+
+      if (user.email_verified) {
+        throw new BadRequestException('Email is already verified');
+      }
+
+      // Generate new verification token
+      const verificationToken = this.emailValidatorService.generateVerificationToken();
+      const verificationUrl = this.emailValidatorService.getVerificationUrl(verificationToken);
+      const tokenExpiresAt = new Date(Date.now() + this.emailValidatorService.getVerificationTokenExpiry());
+
+      // Update user with new token
+      await this.prisma.users.update({
+        where: { id: user.id },
+        data: {
+          verification_token: verificationToken,
+          verification_token_expires_at: tokenExpiresAt,
+        },
+      });
+
+      // Log new verification attempt
+      await this.prisma.email_verification_logs.create({
+        data: {
+          user_id: user.id,
+          email: email,
+          verification_token: verificationToken,
+          token_expires_at: tokenExpiresAt,
+        },
+      });
+
+      // Send verification email
+      await this.emailValidatorService.sendVerificationEmail(
+        email,
+        user.name || email.split('@')[0],
+        verificationToken,
+        verificationUrl,
+      );
+
+      this.logger.log(`Verification email resent to: ${email}`);
+
+      return {
+        success: true,
+        message: 'Verification email sent successfully!',
+      };
+    } catch (error) {
+      this.logger.error(`Resend verification email failed: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+
+  @Post('login')
+  async login(@Body() body: { email: string; password: string }) {
+    try {
+      const { email, password } = body;
+
+      if (!email || !password) {
+        throw new BadRequestException('Email and password are required');
+      }
+
+      const result = await this.authService.login(email, password);
+
+      // Get user shop info
+      const userShop = await this.prisma.user_shops.findFirst({
+        where: { user_id: result.user.id },
+        include: { shops: true },
+      });
+
+      return {
+        ...result,
+        user: {
+          ...result.user,
+          shopId: userShop?.shop_id || null,
+          shopName: userShop?.shops?.name || null,
+          role: userShop?.role || null,
+        },
+      };
+    } catch (error) {
+      this.logger.error(`Login failed: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+
+  @Get('me')
+  @UseGuards(JwtAuthGuard)
+  async getCurrentUser(@Req() req) {
+    try {
+      const { userId, email, name } = req.user;
+
+      const user = await this.prisma.users.findUnique({
+        where: { id: userId },
+        include: {
+          user_shops: {
+            include: {
+              shops: true,
+            },
+          },
+        },
+      });
+
+      if (!user) {
+        return {
+          user: {
+            id: userId,
+            email,
+            name,
+            shopId: null,
+            shopName: null,
+            role: null,
+          },
+        };
+      }
+
+      const userShop = user.user_shops?.[0];
+
+      return {
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          shopId: userShop?.shop_id || null,
+          shopName: userShop?.shops?.name || null,
+          role: userShop?.role || null,
+        },
+      };
+    } catch (error) {
+      this.logger.error(`Get current user failed: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+
+  @Post('logout')
+  @UseGuards(JwtAuthGuard)
+  async logout() {
+    return {
+      success: true,
+      message: 'Logged out successfully',
+    };
+  }
+
+  @Post('request-otp')
+  async requestOtp(@Body() body: { email: string; name?: string; type?: string }) {
+    try {
+      const { email, name, type = 'email_verification' } = body;
+
+      if (!email) {
+        throw new BadRequestException('Email is required');
+      }
+
+      if (type === 'password_reset') {
+        return await this.otpService.requestPasswordResetOtp(email, name);
+      }
+
+      return await this.otpService.requestEmailVerificationOtp(email, name);
+    } catch (error) {
+      this.logger.error(`Request OTP failed: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+
+  @Post('verify-otp')
+  async verifyOtp(@Body() body: { email: string; otp_code: string; type?: string }) {
+    try {
+      const { email, otp_code, type = 'email_verification' } = body;
+
+      if (!email || !otp_code) {
+        throw new BadRequestException('Email and OTP code are required');
+      }
+
+      if (type === 'password_reset') {
+        return await this.otpService.verifyPasswordResetOtp(email, otp_code);
+      }
+
+      return await this.otpService.verifyEmailOtp(email, otp_code);
+    } catch (error) {
+      this.logger.error(`Verify OTP failed: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+
+  @Post('reset-password')
+  async resetPassword(@Body() body: { email: string; otp_code: string; new_password: string }) {
+    try {
+      const { email, otp_code, new_password } = body;
+
+      if (!email || !otp_code || !new_password) {
+        throw new BadRequestException('Email, OTP code, and new password are required');
+      }
+
+      if (new_password.length < 8) {
+        throw new BadRequestException('Password must be at least 8 characters long');
+      }
+
+      // Verify OTP first
+      const otpVerification = await this.otpService.verifyPasswordResetOtp(email, otp_code);
+
+      // Update user password
+      const hashedPassword = await this.authService.hashPassword(new_password);
+      await this.prisma.users.update({
+        where: { id: otpVerification.userId },
+        data: { password_hash: hashedPassword },
+      });
+
+      this.logger.log(`Password reset for user: ${email}`);
+
+      return {
+        success: true,
+        message: 'Password reset successfully. Please login with your new password.',
+      };
+    } catch (error) {
+      this.logger.error(`Password reset failed: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
 
   @Post('onboard')
-  @UseGuards(NeonAuthGuard)
+  @UseGuards(JwtAuthGuard)
   async onboard(@Req() req, @Body() body: { shopName: string; businessType?: string }) {
     const { userId } = req.user;
     const { shopName, businessType } = body;
@@ -31,213 +414,62 @@ export class AuthController {
       throw new BadRequestException('Shop name is required');
     }
 
-    return this.prisma.$transaction(async (tx) => {
-      // 1. Check if user already has an updated shop (OWNER role)
-      const userShop = await tx.user_shops.findFirst({
-        where: { user_id: userId, role: 'OWNER' },
-        include: { shops: true },
-      });
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        // Check if user already has a shop
+        const userShop = await tx.user_shops.findFirst({
+          where: { user_id: userId, role: 'OWNER' },
+          include: { shops: true },
+        });
 
-      if (userShop?.shops) {
-        // Update existing shop (created by syncUserAndShop during login)
-        const updatedShop = await tx.shops.update({
-          where: { id: userShop.shops.id },
+        if (userShop?.shops) {
+          // Update existing shop
+          const updatedShop = await tx.shops.update({
+            where: { id: userShop.shops.id },
+            data: {
+              name: shopName,
+              business_type: businessType || userShop.shops.business_type,
+            },
+          });
+
+          return {
+            success: true,
+            shopId: updatedShop.id,
+            message: 'Shop set up successfully',
+          };
+        }
+
+        // Create new shop
+        const shop = await tx.shops.create({
           data: {
             name: shopName,
-            business_type: businessType || userShop.shops.business_type,
+            business_type: businessType || 'inventory',
+          },
+        });
+
+        await tx.user_shops.create({
+          data: {
+            user_id: userId,
+            shop_id: shop.id,
+            role: 'OWNER',
           },
         });
 
         return {
           success: true,
-          shopId: updatedShop.id,
-          message: 'Shop set up successfully',
+          shopId: shop.id,
+          message: 'Shop created successfully',
         };
-      }
-
-      // 2. Fallback: Create new shop if for some reason it doesn't exist
-      const shop = await tx.shops.create({
-        data: {
-          name: shopName,
-          business_type: businessType || 'inventory',
-        },
       });
-
-      await tx.user_shops.create({
-        data: {
-          user_id: userId,
-          shop_id: shop.id,
-          role: 'OWNER',
-        },
-      });
-
-      return {
-        success: true,
-        shopId: shop.id,
-        message: 'Shop created successfully',
-      };
-    });
-  }
-
-  @Post('signup')
-  @UseGuards(NeonAuthGuard)
-  async signup(@Req() req) {
-    return this.syncUserAndShop(req.user);
-  }
-
-  @Post('login')
-  @UseGuards(NeonAuthGuard)
-  async login(@Req() req) {
-    try {
-      const { userId, email, name } = req.user;
-
-      this.logger.log(`Login attempt for user: ${email}`);
-
-      // Keep Neon profile in sync even if the user already exists
-      await this.prisma.users.upsert({
-        where: { id: userId },
-        update: { email, name, updated_at: new Date() },
-        create: { id: userId, email, name },
-      });
-
-      const existingUserShop = await this.prisma.user_shops.findFirst({
-        where: { user_id: userId },
-        include: { shops: true },
-      });
-
-      if (!existingUserShop) {
-        this.logger.log(`User ${email} requires onboarding`);
-        return {
-          success: true,
-          userId,
-          shopId: null,
-          role: null,
-          isNewShop: false,
-          requiresOnboarding: true,
-        };
-      }
-
-      this.logger.log(`User ${email} logged in successfully with shop ${existingUserShop.shop_id}`);
-      return {
-        success: true,
-        userId,
-        shopId: existingUserShop.shop_id,
-        shopName: existingUserShop.shops?.name,
-        role: existingUserShop.role,
-        isNewShop: false,
-        requiresOnboarding: false,
-      };
     } catch (error) {
-      this.logger.error(`Login failed: ${error.message}`, error.stack);
-      throw new InternalServerErrorException('Login failed. Please try again.');
+      this.logger.error(`Onboard failed: ${error.message}`, error.stack);
+      throw error;
     }
   }
 
-  @Get('me')
-  @UseGuards(NeonAuthGuard)
-  async getCurrentUser(@Req() req) {
-    const { userId, email, name } = req.user;
-
-    // Get user with shop relationship
-    const user = await this.prisma.users.findUnique({
-      where: { id: userId },
-      include: {
-        user_shops: {
-          include: {
-            shops: true,
-          },
-        },
-      },
-    });
-
-    if (!user) {
-      // If user doesn't exist in our DB yet, return basic info
-      return {
-        user: {
-          id: userId,
-          email,
-          name,
-          shopId: null,
-          role: null,
-        },
-      };
-    }
-
-    const userShop = user.user_shops?.[0];
-
-    return {
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name, // Use DB name as it might be more up to date
-        shopId: userShop?.shop_id || null,
-        shopName: userShop?.shops?.name || null,
-        role: userShop?.role || null,
-      },
-    };
-  }
-
-  @Post('logout')
-  @UseGuards(NeonAuthGuard)
-  async logout() {
-    return {
-      success: true,
-      message: 'Logged out successfully',
-    };
-  }
-
-  @Get('neon/callback')
-  async neonCallback(
-    @Query('code') code?: string,
-    @Query('state') state?: string,
-    @Res({ passthrough: true }) res?: FastifyReply,
-  ) {
-    // Ensure headers for CORS are set if this is called directly from browser to API
-    if (res) {
-      res.header('Access-Control-Allow-Origin', '*');
-      res.header('Access-Control-Allow-Credentials', 'true');
-    }
-
-    if (!code || !state) {
-      throw new BadRequestException('Missing Neon callback parameters');
-    }
-
-    const redirectTarget = process.env.NEON_CALLBACK_REDIRECT_URL;
-
-    // Safely construct redirect URL
-    if (redirectTarget && res) {
-      try {
-        const url = new URL(redirectTarget);
-        url.searchParams.set('code', code);
-        url.searchParams.set('state', state);
-
-        // Use 302 Found for temporary redirect
-        res.status(302).redirect(url.toString());
-        return;
-      } catch (e) {
-        // Fallback if URL is invalid
-        console.error('Invalid NEON_CALLBACK_REDIRECT_URL', e);
-      }
-    }
-
-    // Fallback response if no redirect (e.g. mobile deep linking handled differently or misconfig)
-    if (res) {
-      res.status(200);
-    }
-
-    return {
-      success: true,
-      message: 'Neon callback received',
-      code,
-      state,
-      timestamp: new Date().toISOString(),
-    };
-  }
 
   /**
-   * Called after Neon Auth login/signup.
-   * 1. Sync user (id, email, name)
-   * 2. If user has no shop create shop + OWNER role
+   * Sync user and create default shop if needed
    */
   private async syncUserAndShop(user: {
     userId: string;
@@ -246,61 +478,51 @@ export class AuthController {
   }) {
     const { userId, email, name } = user;
 
-    return this.prisma.$transaction(async (tx) => {
-      // 1. Upsert user (Neon Auth -> app user)
-      const userRecord = await tx.users.upsert({
-        where: { id: userId },
-        update: {
-          email,
-          ...(name ? { name } : {}), // Only update name if provided (don't overwrite with null)
-        },
-        create: {
-          id: userId,
-          email,
-          name,
-        },
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        // Upsert user
+        const userRecord = await tx.users.upsert({
+          where: { id: userId },
+          update: {
+            email,
+            ...(name ? { name } : {}),
+          },
+          create: {
+            id: userId,
+            email,
+            name,
+          },
+        });
+
+        // Check if user already has a shop
+        const existingUserShop = await tx.user_shops.findFirst({
+          where: { user_id: userId },
+        });
+
+        if (existingUserShop?.shop_id) {
+          return;
+        }
+
+        // Create default shop
+        const shop = await tx.shops.create({
+          data: {
+            name: `${userRecord.name ?? 'My'} Shop`,
+            business_type: 'inventory',
+          },
+        });
+
+        // Assign OWNER role
+        await tx.user_shops.create({
+          data: {
+            user_id: userId,
+            shop_id: shop.id,
+            role: 'OWNER',
+          },
+        });
       });
-
-      // 2. Check if user already has a shop
-      const existingUserShop = await tx.user_shops.findFirst({
-        where: { user_id: userId },
-        include: { shops: true },
-      });
-
-      if (existingUserShop?.shop_id) {
-        return {
-          success: true,
-          userId,
-          shopId: existingUserShop.shop_id,
-          role: existingUserShop.role,
-          isNewShop: false,
-        };
-      }
-
-      // 3. Create default shop
-      const shop = await tx.shops.create({
-        data: {
-          name: `${userRecord.name ?? 'My'} Shop`,
-          business_type: 'inventory',
-        },
-      });
-
-      // 4. Assign OWNER role
-      await tx.user_shops.create({
-        data: {
-          user_id: userId,
-          shop_id: shop.id,
-          role: 'OWNER',
-        },
-      });
-
-      return {
-        success: true,
-        userId,
-        shopId: shop.id,
-        role: 'OWNER',
-        isNewShop: true,
-      };
-    });
+    } catch (error) {
+      this.logger.error(`Sync user and shop failed: ${error.message}`, error.stack);
+      // Don't throw - sync is best effort
+    }
   }
 }
