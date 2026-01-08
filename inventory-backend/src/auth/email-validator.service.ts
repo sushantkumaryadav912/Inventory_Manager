@@ -3,12 +3,58 @@ import { ConfigService } from '@nestjs/config';
 import * as https from 'https';
 
 interface AbstractApiResponse {
-  is_valid_format: boolean;
-  is_free_email: boolean;
-  is_disposable_email: boolean;
-  is_role_email: boolean;
-  deliverability: string;
-  quality_score: number;
+  email_address: string;
+  email_deliverability: {
+    status: string;
+    status_detail: string;
+    is_format_valid: boolean;
+    is_smtp_valid: boolean;
+    is_mx_valid: boolean;
+    mx_records: string[];
+  };
+  email_sender: {
+    first_name: string;
+    last_name: string;
+    email_provider_name: string;
+    organization_name: string;
+    organization_type: string;
+  };
+  email_domain: {
+    domain: string;
+    domain_age: number;
+    is_live_site: boolean;
+    registrar: string;
+    registrar_url: string;
+    date_registered: string;
+    date_last_renewed: string;
+    date_expires: string;
+    is_risky_tld: boolean;
+  };
+  email_quality: {
+    score: number;
+    is_free_email: boolean;
+    is_username_suspicious: boolean;
+    is_disposable: boolean;
+    is_catchall: boolean;
+    is_subaddress: boolean;
+    is_role: boolean;
+    is_dmarc_enforced: boolean;
+    is_spf_strict: boolean;
+    minimum_age: number;
+  };
+  email_risk: {
+    address_risk_status: string;
+    domain_risk_status: string;
+  };
+  email_breaches?: {
+    total_breaches: number;
+    date_first_breached: string;
+    date_last_breached: string;
+    breached_domains: Array<{
+      domain: string;
+      breach_date: string;
+    }>;
+  };
 }
 
 interface BrevoSendResponse {
@@ -26,7 +72,7 @@ interface VerificationEmailData {
 @Injectable()
 export class EmailValidatorService {
   private readonly logger = new Logger(EmailValidatorService.name);
-  private readonly ABSTRACT_API_BASE = 'api.abstractapi.com';
+  private readonly ABSTRACT_API_BASE = 'emailreputation.abstractapi.com';
   private readonly BREVO_API_BASE = 'api.brevo.com';
   private readonly VERIFICATION_TOKEN_EXPIRY = 24 * 60 * 60 * 1000; // 24 hours in ms
   private readonly VERIFICATION_TOKEN_LENGTH = 32;
@@ -52,7 +98,7 @@ export class EmailValidatorService {
       const response = await this.makeAbstractApiRequest(email, apiKey);
 
       // Check validation rules
-      if (!response.is_valid_format) {
+      if (!response.email_deliverability.is_format_valid) {
         return {
           isValid: false,
           reason: 'Invalid email format',
@@ -60,7 +106,7 @@ export class EmailValidatorService {
         };
       }
 
-      if (response.is_disposable_email) {
+      if (response.email_quality.is_disposable) {
         return {
           isValid: false,
           reason: 'Disposable email addresses are not allowed',
@@ -68,7 +114,7 @@ export class EmailValidatorService {
         };
       }
 
-      if (response.deliverability === 'UNDELIVERABLE') {
+      if (response.email_deliverability.status === 'undeliverable') {
         return {
           isValid: false,
           reason: 'Email address is undeliverable',
@@ -76,7 +122,7 @@ export class EmailValidatorService {
         };
       }
 
-      if (response.quality_score < 0.5) {
+      if (response.email_quality.score < 0.5) {
         return {
           isValid: false,
           reason: 'Email quality score is too low',
@@ -84,7 +130,7 @@ export class EmailValidatorService {
         };
       }
 
-      this.logger.log(`Email validated successfully: ${email} (quality: ${response.quality_score})`);
+      this.logger.log(`Email validated successfully: ${email} (quality: ${response.email_quality.score})`);
       return {
         isValid: true,
         details: response,
@@ -105,7 +151,7 @@ export class EmailValidatorService {
     return new Promise((resolve, reject) => {
       const options = {
         hostname: this.ABSTRACT_API_BASE,
-        path: `/v1/email_validation?api_key=${apiKey}&email=${encodeURIComponent(email)}`,
+        path: `/v1/?api_key=${apiKey}&email=${encodeURIComponent(email)}`,
         method: 'GET',
         headers: {
           'User-Agent': 'InventoryManager/1.0',
@@ -121,13 +167,17 @@ export class EmailValidatorService {
 
         res.on('end', () => {
           try {
-            const parsed = JSON.parse(data);
-            if (res.statusCode === 200) {
-              resolve(parsed);
-            } else {
-              reject(new Error(`Abstract API error: ${parsed.error || 'Unknown error'}`));
+            // Log response for debugging
+            if (res.statusCode !== 200) {
+              this.logger.error(`Abstract API returned status ${res.statusCode}: ${data}`);
+              reject(new Error(`Abstract API error (${res.statusCode}): ${data.substring(0, 200)}`));
+              return;
             }
+            
+            const parsed = JSON.parse(data);
+            resolve(parsed);
           } catch (e) {
+            this.logger.error(`Failed to parse response (status ${res.statusCode}): ${data.substring(0, 200)}`);
             reject(new Error(`Failed to parse Abstract API response: ${e.message}`));
           }
         });
