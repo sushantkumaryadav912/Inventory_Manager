@@ -78,12 +78,22 @@ export class AuthController {
       });
 
       // Step 5: Send verification email via Brevo
-      await this.emailValidatorService.sendVerificationEmail(
-        email,
-        name || email.split('@')[0],
-        verificationToken,
-        verificationUrl,
-      );
+      let verificationEmailSent = true;
+      try {
+        await this.emailValidatorService.sendVerificationEmail(
+          email,
+          name || email.split('@')[0],
+          verificationToken,
+          verificationUrl,
+        );
+      } catch (err) {
+        verificationEmailSent = false;
+        const message = err instanceof Error ? err.message : String(err);
+        this.logger.error(
+          `Signup succeeded, but sending verification email failed: ${message}`,
+          err instanceof Error ? err.stack : undefined,
+        );
+      }
 
       // Sync user and shop
       await this.syncUserAndShop({
@@ -94,8 +104,10 @@ export class AuthController {
 
       return {
         ...result,
-        message: 'Signup successful! Please check your email to verify your account.',
-        verificationEmailSent: true,
+        message: verificationEmailSent
+          ? 'Signup successful! Please check your email to verify your account.'
+          : 'Signup successful, but we could not send the verification email. Please try again using resend verification.',
+        verificationEmailSent,
         emailVerified: false,
         requiresEmailVerification: true,
       };

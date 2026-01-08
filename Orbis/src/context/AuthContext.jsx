@@ -128,6 +128,21 @@ export const AuthProvider = ({ children }) => {
     });
   };
 
+  const updateUser = async (patch) => {
+    setState((prev) => {
+      const nextUser = { ...(prev.user || {}), ...(patch || {}) };
+      return { ...prev, user: nextUser };
+    });
+
+    const stored = await secureStorage.getAuth();
+    if (stored?.accessToken) {
+      await secureStorage.saveAuth({
+        ...stored,
+        user: { ...(stored.user || {}), ...(patch || {}) },
+      });
+    }
+  };
+
   const signUp = async ({ name, email, password }) => {
     try {
       setState(prev => ({ ...prev, isLoading: true }));
@@ -140,16 +155,20 @@ export const AuthProvider = ({ children }) => {
         throw new Error('Unable to create session. Auth service might be misconfigured or returned no token.');
       }
 
-      await authService.signUp();
-      const { user } = await authService.getCurrentUser();
+      const normalizedUser = {
+        ...(session.user || {}),
+        requiresOnboarding: Boolean(session.raw?.requiresOnboarding),
+        requiresEmailVerification: Boolean(session.raw?.requiresEmailVerification),
+        emailVerified: Boolean(session.raw?.emailVerified),
+      };
 
       await saveSession({
         accessToken: session.accessToken,
         refreshToken: session.refreshToken,
         expiresAt: session.expiresAt,
-        user: user || session.user,
+        user: normalizedUser,
       });
-      return { success: true, user };
+      return { success: true, user: normalizedUser };
     } catch (error) {
       console.error('Sign up failed:', error);
       const message =
@@ -192,21 +211,20 @@ export const AuthProvider = ({ children }) => {
         throw new Error('Unable to create session. Please check your internet connection or credentials.');
       }
 
-      const loginResponse = await authService.login();
-      const user = loginResponse.user || (await authService.getCurrentUser()).user;
-      
-      // Preserve requiresOnboarding from login response
-      if (loginResponse.requiresOnboarding) {
-        user.requiresOnboarding = true;
-      }
+      const normalizedUser = {
+        ...(session.user || {}),
+        requiresOnboarding: Boolean(session.raw?.requiresOnboarding),
+        requiresEmailVerification: Boolean(session.raw?.requiresEmailVerification),
+        emailVerified: Boolean(session.raw?.emailVerified),
+      };
 
       await saveSession({
         accessToken: session.accessToken,
         refreshToken: session.refreshToken,
         expiresAt: session.expiresAt,
-        user: user || session.user,
+        user: normalizedUser,
       });
-      return { success: true, user };
+      return { success: true, user: normalizedUser };
     } catch (error) {
       console.error('Login failed:', error);
       const message =
@@ -252,6 +270,7 @@ export const AuthProvider = ({ children }) => {
     signUp,
     logout,
     refreshUser,
+    updateUser,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

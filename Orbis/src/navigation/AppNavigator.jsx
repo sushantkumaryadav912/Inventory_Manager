@@ -8,6 +8,7 @@ import MainTabsNavigator from './MainTabsNavigator';
 import { colors } from '../theme';
 
 import ShopSetupScreen from '../screens/auth/ShopSelectionScreen';
+import VerifyEmailScreen from '../screens/auth/VerifyEmailScreen';
 
 /**
  * Root navigator - decides between Auth flow and Main app
@@ -26,6 +27,9 @@ const AppNavigator = () => {
   }
 
   if (isAuthenticated) {
+    if (user?.requiresEmailVerification && !user?.emailVerified) {
+      return <VerifyEmailScreen />;
+    }
     if (user?.requiresOnboarding) {
       return <ShopSetupScreen />;
     }

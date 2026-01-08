@@ -2,7 +2,7 @@ import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as https from 'https';
 
-interface AbstractApiResponse {
+interface AbstractEmailReputationResponse {
   email_address: string;
   email_deliverability: {
     status: string;
@@ -57,6 +57,47 @@ interface AbstractApiResponse {
   };
 }
 
+// Abstract Email Validation API response (common on free plans)
+interface AbstractEmailValidationResponse {
+  email?: string;
+  is_valid_format: {
+    value: boolean;
+    text?: string;
+  };
+  is_disposable_email?: {
+    value: boolean;
+    text?: string;
+  };
+  is_role_email?: {
+    value: boolean;
+    text?: string;
+  };
+  deliverability?: string;
+  quality_score?: string | number;
+}
+
+type AbstractApiResponse = AbstractEmailReputationResponse | AbstractEmailValidationResponse;
+
+function isReputationResponse(value: any): value is AbstractEmailReputationResponse {
+  return (
+    value &&
+    typeof value === 'object' &&
+    typeof value.email_address === 'string' &&
+    value.email_deliverability &&
+    typeof value.email_deliverability === 'object'
+  );
+}
+
+function isValidationResponse(value: any): value is AbstractEmailValidationResponse {
+  return (
+    value &&
+    typeof value === 'object' &&
+    value.is_valid_format &&
+    typeof value.is_valid_format === 'object' &&
+    typeof value.is_valid_format.value === 'boolean'
+  );
+}
+
 interface BrevoSendResponse {
   id: number;
   uuid: string;
@@ -73,9 +114,14 @@ interface VerificationEmailData {
 export class EmailValidatorService {
   private readonly logger = new Logger(EmailValidatorService.name);
   private readonly ABSTRACT_API_BASE = 'emailreputation.abstractapi.com';
+  private readonly ABSTRACT_API_FALLBACK_BASES = [
+    'emailreputation.abstractapi.com',
+    'emailvalidation.abstractapi.com',
+  ];
   private readonly BREVO_API_BASE = 'api.brevo.com';
   private readonly VERIFICATION_TOKEN_EXPIRY = 24 * 60 * 60 * 1000; // 24 hours in ms
   private readonly VERIFICATION_TOKEN_LENGTH = 32;
+  private readonly EXTERNAL_HTTP_TIMEOUT_MS = 10000;
 
   constructor(private readonly configService: ConfigService) {}
 
@@ -97,46 +143,99 @@ export class EmailValidatorService {
 
       const response = await this.makeAbstractApiRequest(email, apiKey);
 
-      // Check validation rules
-      if (!response.email_deliverability.is_format_valid) {
+      // Check validation rules (support both Abstract APIs)
+      if (isReputationResponse(response)) {
+        if (!response.email_deliverability.is_format_valid) {
+          return {
+            isValid: false,
+            reason: 'Invalid email format',
+            details: response,
+          };
+        }
+
+        if (response.email_quality.is_disposable) {
+          return {
+            isValid: false,
+            reason: 'Disposable email addresses are not allowed',
+            details: response,
+          };
+        }
+
+        if (response.email_deliverability.status === 'undeliverable') {
+          return {
+            isValid: false,
+            reason: 'Email address is undeliverable',
+            details: response,
+          };
+        }
+
+        if (response.email_quality.score < 0.5) {
+          return {
+            isValid: false,
+            reason: 'Email quality score is too low',
+            details: response,
+          };
+        }
+
+        this.logger.log(
+          `Email validated successfully: ${email} (quality: ${response.email_quality.score})`,
+        );
         return {
-          isValid: false,
-          reason: 'Invalid email format',
+          isValid: true,
           details: response,
         };
       }
 
-      if (response.email_quality.is_disposable) {
+      if (isValidationResponse(response)) {
+        if (!response.is_valid_format.value) {
+          return {
+            isValid: false,
+            reason: 'Invalid email format',
+            details: response,
+          };
+        }
+
+        if (response.is_disposable_email?.value) {
+          return {
+            isValid: false,
+            reason: 'Disposable email addresses are not allowed',
+            details: response,
+          };
+        }
+
+        const deliverability = String(response.deliverability || '').toLowerCase();
+        if (deliverability === 'undeliverable') {
+          return {
+            isValid: false,
+            reason: 'Email address is undeliverable',
+            details: response,
+          };
+        }
+
+        const qualityRaw = response.quality_score;
+        const quality = typeof qualityRaw === 'number' ? qualityRaw : Number(qualityRaw);
+        if (!Number.isNaN(quality) && quality < 0.5) {
+          return {
+            isValid: false,
+            reason: 'Email quality score is too low',
+            details: response,
+          };
+        }
+
+        this.logger.log(`Email validated successfully: ${email} (validation API)`);
         return {
-          isValid: false,
-          reason: 'Disposable email addresses are not allowed',
+          isValid: true,
           details: response,
         };
       }
 
-      if (response.email_deliverability.status === 'undeliverable') {
-        return {
-          isValid: false,
-          reason: 'Email address is undeliverable',
-          details: response,
-        };
-      }
-
-      if (response.email_quality.score < 0.5) {
-        return {
-          isValid: false,
-          reason: 'Email quality score is too low',
-          details: response,
-        };
-      }
-
-      this.logger.log(`Email validated successfully: ${email} (quality: ${response.email_quality.score})`);
-      return {
-        isValid: true,
-        details: response,
-      };
+      throw new Error('Unrecognized Abstract API response format');
     } catch (error) {
-      this.logger.error(`Email validation failed for ${email}:`, error.message);
+      this.logger.error(`Email validation failed for ${email}:`, error);
+      this.logger.error(`Error details:`, {
+        message: error.message,
+        stack: error.stack,
+      });
       throw new BadRequestException(`Email validation failed: ${error.message}`);
     }
   }
@@ -148,46 +247,88 @@ export class EmailValidatorService {
     email: string,
     apiKey: string,
   ): Promise<AbstractApiResponse> {
+    const bases = [this.ABSTRACT_API_BASE, ...this.ABSTRACT_API_FALLBACK_BASES].filter(
+      (v, i, a) => a.indexOf(v) === i,
+    );
+
     return new Promise((resolve, reject) => {
-      const options = {
-        hostname: this.ABSTRACT_API_BASE,
-        path: `/v1/?api_key=${apiKey}&email=${encodeURIComponent(email)}`,
-        method: 'GET',
-        headers: {
-          'User-Agent': 'InventoryManager/1.0',
-        },
+      let lastError: Error | undefined;
+
+      const tryNext = (index: number) => {
+        if (index >= bases.length) {
+          reject(lastError || new Error('Abstract API request failed'));
+          return;
+        }
+
+        const hostname = bases[index];
+        const options = {
+          hostname,
+          path: `/v1/?api_key=${apiKey}&email=${encodeURIComponent(email)}`,
+          method: 'GET',
+          headers: {
+            'User-Agent': 'InventoryManager/1.0',
+            Accept: 'application/json',
+          },
+        };
+
+        const req = https.request(options, (res: any) => {
+          let data = '';
+
+          res.on('data', (chunk: any) => {
+            data += chunk;
+          });
+
+          res.on('end', () => {
+            try {
+              this.logger.debug(
+                `Abstract API (${hostname}) response status: ${res.statusCode}`,
+              );
+
+              const bodyPreview = data.substring(0, 500);
+              this.logger.debug(`Abstract API (${hostname}) body: ${bodyPreview}`);
+
+              if (res.statusCode !== 200) {
+                lastError = new Error(
+                  `Abstract API error (${hostname}, ${res.statusCode}): ${data.substring(0, 200)}`,
+                );
+                tryNext(index + 1);
+                return;
+              }
+
+              if (bodyPreview.trim().startsWith('<')) {
+                lastError = new Error(
+                  `Abstract API returned HTML (${hostname}). Check API key / plan / network.`,
+                );
+                tryNext(index + 1);
+                return;
+              }
+
+              const parsed = JSON.parse(data);
+              resolve(parsed);
+            } catch (e) {
+              lastError = new Error(
+                `Failed to parse Abstract API response (${hostname}): ${(e as Error).message}`,
+              );
+              tryNext(index + 1);
+            }
+          });
+        });
+
+        req.setTimeout(this.EXTERNAL_HTTP_TIMEOUT_MS, () => {
+          req.destroy(new Error(`Abstract API timeout after ${this.EXTERNAL_HTTP_TIMEOUT_MS}ms`));
+        });
+
+        req.on('error', (error) => {
+          lastError = new Error(
+            `Request to Abstract API failed (${hostname}): ${error.message}`,
+          );
+          tryNext(index + 1);
+        });
+
+        req.end();
       };
 
-      const req = https.request(options, (res: any) => {
-        let data = '';
-
-        res.on('data', (chunk: any) => {
-          data += chunk;
-        });
-
-        res.on('end', () => {
-          try {
-            // Log response for debugging
-            if (res.statusCode !== 200) {
-              this.logger.error(`Abstract API returned status ${res.statusCode}: ${data}`);
-              reject(new Error(`Abstract API error (${res.statusCode}): ${data.substring(0, 200)}`));
-              return;
-            }
-            
-            const parsed = JSON.parse(data);
-            resolve(parsed);
-          } catch (e) {
-            this.logger.error(`Failed to parse response (status ${res.statusCode}): ${data.substring(0, 200)}`);
-            reject(new Error(`Failed to parse Abstract API response: ${e.message}`));
-          }
-        });
-      });
-
-      req.on('error', (error) => {
-        reject(new Error(`Request to Abstract API failed: ${error.message}`));
-      });
-
-      req.end();
+      tryNext(0);
     });
   }
 
@@ -298,6 +439,10 @@ export class EmailValidatorService {
 
       req.on('error', (error) => {
         reject(new Error(`Request to Brevo API failed: ${error.message}`));
+      });
+
+      req.setTimeout(this.EXTERNAL_HTTP_TIMEOUT_MS, () => {
+        req.destroy(new Error(`Brevo API timeout after ${this.EXTERNAL_HTTP_TIMEOUT_MS}ms`));
       });
 
       req.write(payloadString);
