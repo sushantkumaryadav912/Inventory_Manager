@@ -34,6 +34,15 @@ export class OtpService {
     nextVerificationAttempt?: Date;
   }> {
     try {
+      // Email verification OTP is for existing users (created during signup)
+      const user = await this.prisma.users.findUnique({
+        where: { email },
+      });
+
+      if (!user) {
+        throw new BadRequestException('User not found. Please sign up again.');
+      }
+
       // Check if too many OTP requests in short time (rate limiting)
       const recentOtps = await this.prisma.otp_tokens.findMany({
         where: {
@@ -62,7 +71,7 @@ export class OtpService {
       // Save OTP to database
       await this.prisma.otp_tokens.create({
         data: {
-          user_id: '00000000-0000-0000-0000-000000000000', // Temp UUID for non-registered users
+          user_id: user.id,
           email,
           otp_code: otpCode,
           type: 'email_verification',
@@ -123,6 +132,15 @@ export class OtpService {
       await this.prisma.otp_tokens.update({
         where: { id: otp.id },
         data: { is_used: true },
+      });
+
+      // Mark user as verified
+      await this.prisma.users.update({
+        where: { email },
+        data: {
+          email_verified: true,
+          email_verified_at: new Date(),
+        },
       });
 
       this.logger.log(`Email OTP verified for ${email}`);

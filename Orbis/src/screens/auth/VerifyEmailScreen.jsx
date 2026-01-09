@@ -19,7 +19,6 @@ const VerifyEmailScreen = () => {
         setDidRequest(true);
         await authService.requestOtp(email, 'email_verification', name);
       } catch (error) {
-        setDidRequest(false);
         Alert.alert(
           'Error',
           error?.response?.data?.message || 'Failed to send verification code. Please try again.',
