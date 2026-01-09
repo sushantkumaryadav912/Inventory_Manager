@@ -9,8 +9,11 @@ import {
   Req,
   Query,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { OtpService } from './otp.service';
+import { PasswordResetService } from './password-reset.service';
+import { OtpThrottlerGuard } from './otp-throttler.guard';
 import { EmailValidatorService } from './email-validator.service';
 import { JwtAuthGuard } from './jwt.guard';
 import { PrismaService } from '../prisma/prisma.service';
@@ -22,6 +25,7 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly otpService: OtpService,
+    private readonly passwordResetService: PasswordResetService,
     private readonly emailValidatorService: EmailValidatorService,
     private readonly prisma: PrismaService,
   ) {}
@@ -342,6 +346,8 @@ export class AuthController {
   }
 
   @Post('request-otp')
+  @UseGuards(OtpThrottlerGuard)
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
   async requestOtp(@Body() body: { email: string; name?: string; type?: string }) {
     try {
       const { email, name, type = 'email_verification' } = body;
@@ -351,7 +357,8 @@ export class AuthController {
       }
 
       if (type === 'password_reset') {
-        return await this.otpService.requestPasswordResetOtp(email, name);
+        // Backwards compatible: password reset is reset-link–based.
+        return await this.passwordResetService.requestPasswordReset(email);
       }
 
       return await this.otpService.requestEmailVerificationOtp(email, name);
@@ -362,6 +369,8 @@ export class AuthController {
   }
 
   @Post('verify-otp')
+  @UseGuards(OtpThrottlerGuard)
+  @Throttle({ default: { ttl: 60_000, limit: 5 } })
   async verifyOtp(@Body() body: { email: string; otp_code: string; type?: string }) {
     try {
       const { email, otp_code, type = 'email_verification' } = body;
@@ -371,7 +380,7 @@ export class AuthController {
       }
 
       if (type === 'password_reset') {
-        return await this.otpService.verifyPasswordResetOtp(email, otp_code);
+        throw new BadRequestException('Password reset OTP verification is not supported');
       }
 
       return await this.otpService.verifyEmailOtp(email, otp_code);
@@ -382,36 +391,29 @@ export class AuthController {
   }
 
   @Post('reset-password')
-  async resetPassword(@Body() body: { email: string; otp_code: string; new_password: string }) {
+  @UseGuards(OtpThrottlerGuard)
+  @Throttle({ default: { ttl: 60_000, limit: 5 } })
+  async resetPassword(@Body() body: { userId: string; token: string; newPassword: string }) {
     try {
-      const { email, otp_code, new_password } = body;
-
-      if (!email || !otp_code || !new_password) {
-        throw new BadRequestException('Email, OTP code, and new password are required');
-      }
-
-      if (new_password.length < 8) {
-        throw new BadRequestException('Password must be at least 8 characters long');
-      }
-
-      // Verify OTP first
-      const otpVerification = await this.otpService.verifyPasswordResetOtp(email, otp_code);
-
-      // Update user password
-      const hashedPassword = await this.authService.hashPassword(new_password);
-      await this.prisma.users.update({
-        where: { id: otpVerification.userId },
-        data: { password_hash: hashedPassword },
-      });
-
-      this.logger.log(`Password reset for user: ${email}`);
-
-      return {
-        success: true,
-        message: 'Password reset successfully. Please login with your new password.',
-      };
+      return await this.passwordResetService.resetPasswordWithToken(body);
     } catch (error) {
       this.logger.error(`Password reset failed: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+
+  @Post('request-password-reset')
+  @UseGuards(OtpThrottlerGuard)
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
+  async requestPasswordReset(@Body() body: { email: string }) {
+    try {
+      const { email } = body;
+      if (!email) {
+        throw new BadRequestException('Email is required');
+      }
+      return await this.passwordResetService.requestPasswordReset(email);
+    } catch (error) {
+      this.logger.error(`Request password reset failed: ${error.message}`, error.stack);
       throw error;
     }
   }

@@ -13,6 +13,140 @@ export class ReportsService {
     return 0;
   }
 
+  private getMonthRange(now: Date = new Date()): { from: Date; to: Date } {
+    const from = new Date(now);
+    from.setDate(1);
+    from.setHours(0, 0, 0, 0);
+
+    const to = new Date(now);
+    to.setHours(23, 59, 59, 999);
+    return { from, to };
+  }
+
+  async overviewStats(shopId: string) {
+    const { from, to } = this.getMonthRange(new Date());
+
+    const [salesAgg, purchasesAgg, inventoryRows] = await Promise.all([
+      this.prisma.sales.aggregate({
+        where: { shop_id: shopId, created_at: { gte: from, lte: to } },
+        _sum: { total_amount: true },
+        _count: true,
+      }),
+      this.prisma.purchases.aggregate({
+        where: { shop_id: shopId, created_at: { gte: from, lte: to } },
+        _sum: { total_cost: true },
+        _count: true,
+      }),
+      this.prisma.inventory.findMany({
+        where: { shop_id: shopId },
+        include: { products: true },
+      }),
+    ]);
+
+    const inventoryValue = inventoryRows.reduce((sum, row) => {
+      const qty = row.quantity_available ?? 0;
+      const cost = this.toNumber(row.products?.cost_price);
+      return sum + qty * cost;
+    }, 0);
+
+    const lowStockItems = inventoryRows.filter((row) => {
+      const qty = row.quantity_available ?? 0;
+      return qty > 0 && qty <= 5;
+    }).length;
+
+    const totalSales = this.toNumber(salesAgg._sum.total_amount);
+    const totalPurchases = this.toNumber(purchasesAgg._sum.total_cost);
+    const profit = totalSales - totalPurchases;
+
+    return {
+      totalSales,
+      totalPurchases,
+      inventoryValue,
+      profit,
+      lowStockItems,
+    };
+  }
+
+  async inventoryReport(shopId: string) {
+    const rows = await this.prisma.inventory.findMany({
+      where: { shop_id: shopId },
+      include: { products: true },
+    });
+
+    const totalItems = rows.length;
+    const totalValue = rows.reduce((sum, row) => {
+      const qty = row.quantity_available ?? 0;
+      const cost = this.toNumber(row.products?.cost_price);
+      return sum + qty * cost;
+    }, 0);
+
+    const outOfStockItems = rows.filter((row) => (row.quantity_available ?? 0) <= 0).length;
+    const lowStockItems = rows.filter((row) => {
+      const qty = row.quantity_available ?? 0;
+      return qty > 0 && qty <= 5;
+    }).length;
+
+    return {
+      totalItems,
+      totalValue,
+      lowStockItems,
+      outOfStockItems,
+    };
+  }
+
+  async salesSummary(shopId: string, from?: Date, to?: Date) {
+    const range = from && to ? { from, to } : this.getMonthRange(new Date());
+
+    const salesAgg = await this.prisma.sales.aggregate({
+      where: { shop_id: shopId, created_at: { gte: range.from, lte: range.to } },
+      _sum: { total_amount: true },
+      _count: true,
+    });
+
+    const purchasesAgg = await this.prisma.purchases.aggregate({
+      where: { shop_id: shopId, created_at: { gte: range.from, lte: range.to } },
+      _sum: { total_cost: true },
+    });
+
+    const totalSales = this.toNumber(salesAgg._sum.total_amount);
+    const totalOrders = salesAgg._count;
+    const avgOrderValue = totalOrders > 0 ? totalSales / totalOrders : 0;
+
+    const totalPurchases = this.toNumber(purchasesAgg._sum.total_cost);
+    const profit = totalSales - totalPurchases;
+    const profitMargin = totalSales > 0 ? (profit / totalSales) * 100 : 0;
+
+    return {
+      totalSales,
+      totalOrders,
+      avgOrderValue,
+      profitMargin: Math.round(profitMargin * 100) / 100,
+    };
+  }
+
+  async purchasesSummary(shopId: string, from?: Date, to?: Date) {
+    const range = from && to ? { from, to } : this.getMonthRange(new Date());
+
+    const purchasesAgg = await this.prisma.purchases.aggregate({
+      where: { shop_id: shopId, created_at: { gte: range.from, lte: range.to } },
+      _sum: { total_cost: true },
+      _count: true,
+    });
+
+    const suppliers = await this.prisma.purchases.findMany({
+      where: { shop_id: shopId, created_at: { gte: range.from, lte: range.to } },
+      distinct: ['supplier_id'],
+      select: { supplier_id: true },
+    });
+
+    return {
+      totalPurchases: this.toNumber(purchasesAgg._sum.total_cost),
+      totalOrders: purchasesAgg._count,
+      pendingOrders: 0,
+      totalSuppliers: suppliers.filter((s) => !!s.supplier_id).length,
+    };
+  }
+
   /* 1️⃣ Daily sales summary */
   async dailySales(shopId: string, date: Date) {
     const start = new Date(date);

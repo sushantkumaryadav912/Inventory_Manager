@@ -1,10 +1,10 @@
 import { Controller, Get, Req, UseGuards } from '@nestjs/common';
-import { NeonAuthGuard } from '../auth/auth.guard';
+import { JwtAuthGuard } from '../auth/jwt.guard';
 import { ShopGuard } from '../common/guards/shop.guard';
 import type { RequestWithShop } from '../common/types/request-with-shop';
 
 @Controller('example')
-@UseGuards(NeonAuthGuard, ShopGuard)
+@UseGuards(JwtAuthGuard, ShopGuard)
 export class ExampleController {
   @Get()
   getExample(@Req() req: RequestWithShop) {

@@ -1,4 +1,4 @@
-import { Injectable, Logger, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as https from 'https';
 
@@ -6,8 +6,38 @@ import * as https from 'https';
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
   private readonly BREVO_API_BASE = 'api.brevo.com';
+  private readonly BREVO_TIMEOUT_MS = 10_000;
 
   constructor(private readonly configService: ConfigService) {}
+
+  private parseBrevoTemplateId(raw: string | undefined, envName: string): number | undefined {
+    if (!raw) return undefined;
+    const trimmed = raw.trim();
+    if (!trimmed) return undefined;
+
+    // Brevo requires a numeric template ID.
+    if (!/^\d+$/.test(trimmed)) {
+      throw new Error(`${envName} must be a positive integer.`);
+    }
+
+    const parsed = Number(trimmed);
+    if (!Number.isSafeInteger(parsed) || parsed <= 0) {
+      throw new Error(`${envName} must be a positive integer.`);
+    }
+    return parsed;
+  }
+
+  private getRequiredEmailConfig(): { fromEmail: string; fromName: string; supportEmail: string } {
+    const fromEmail = this.configService.get<string>('EMAIL_FROM');
+    const fromName = this.configService.get<string>('EMAIL_FROM_NAME');
+    const supportEmail = this.configService.get<string>('SUPPORT_EMAIL');
+
+    if (!fromEmail) throw new Error('EMAIL_FROM is required when sending via Brevo.');
+    if (!fromName) throw new Error('EMAIL_FROM_NAME is required when sending via Brevo.');
+    if (!supportEmail) throw new Error('SUPPORT_EMAIL is required when sending via Brevo.');
+
+    return { fromEmail, fromName, supportEmail };
+  }
 
   /**
    * Send OTP email via Brevo
@@ -22,21 +52,32 @@ export class EmailService {
         return true;
       }
 
-      const subject = 'Your Email Verification Code';
-      const htmlContent = this.generateOtpEmailTemplate(otpCode, userName);
-      const textContent = `Your verification code is: ${otpCode}. This code expires in 10 minutes.`;
+      const { fromEmail, fromName, supportEmail } = this.getRequiredEmailConfig();
 
-      const payload = {
+      const otpTemplateIdRaw = this.configService.get<string>('BREVO_OTP_TEMPLATE_ID');
+      const otpTemplateId = this.parseBrevoTemplateId(otpTemplateIdRaw, 'BREVO_OTP_TEMPLATE_ID');
+
+      if (!otpTemplateId) {
+        throw new Error('BREVO_OTP_TEMPLATE_ID is required when BREVO_API_KEY is set.');
+      }
+
+      const basePayload = {
         sender: {
-          name: this.configService.get<string>('EMAIL_FROM_NAME') || 'Inventory Manager',
-          email: this.configService.get<string>('EMAIL_FROM') || 'noreply@inventorymanager.com',
+          name: fromName,
+          email: fromEmail,
         },
         to: [{ email, name: userName || email.split('@')[0] }],
-        subject,
-        htmlContent,
-        textContent,
         replyTo: {
-          email: this.configService.get<string>('SUPPORT_EMAIL') || 'support@inventorymanager.com',
+          email: supportEmail,
+        },
+      };
+
+      const payload = {
+        ...basePayload,
+        templateId: otpTemplateId,
+        params: {
+          otp: otpCode,
+          name: userName || email.split('@')[0],
         },
       };
 
@@ -50,41 +91,55 @@ export class EmailService {
   }
 
   /**
-   * Send password reset OTP email via Brevo
+   * Send password reset link email via Brevo
    */
-  async sendPasswordResetEmail(email: string, otpCode: string, userName?: string): Promise<boolean> {
+  async sendPasswordResetLinkEmail(email: string, resetLink: string, userName?: string): Promise<boolean> {
     try {
       const brevoApiKey = this.configService.get<string>('BREVO_API_KEY');
       
       // Allow test mode - just log the OTP
       if (!brevoApiKey) {
-        this.logger.log(`[TEST MODE] Password Reset Email to ${email}: ${otpCode}`);
+        this.logger.log(`[TEST MODE] Password Reset Link Email to ${email}: ${resetLink}`);
         return true;
       }
 
-      const subject = 'Password Reset Request';
-      const htmlContent = this.generatePasswordResetEmailTemplate(otpCode, userName);
-      const textContent = `Your password reset code is: ${otpCode}. This code expires in 30 minutes.`;
+      const { fromEmail, fromName, supportEmail } = this.getRequiredEmailConfig();
 
-      const payload = {
+      const resetTemplateIdRaw = this.configService.get<string>('BREVO_PASSWORD_RESET_TEMPLATE_ID');
+      const resetTemplateId = this.parseBrevoTemplateId(
+        resetTemplateIdRaw,
+        'BREVO_PASSWORD_RESET_TEMPLATE_ID',
+      );
+
+      if (!resetTemplateId) {
+        throw new Error('BREVO_PASSWORD_RESET_TEMPLATE_ID is required when BREVO_API_KEY is set.');
+      }
+
+      const basePayload = {
         sender: {
-          name: this.configService.get<string>('EMAIL_FROM_NAME') || 'Inventory Manager',
-          email: this.configService.get<string>('EMAIL_FROM') || 'noreply@inventorymanager.com',
+          name: fromName,
+          email: fromEmail,
         },
         to: [{ email, name: userName || email.split('@')[0] }],
-        subject,
-        htmlContent,
-        textContent,
         replyTo: {
-          email: this.configService.get<string>('SUPPORT_EMAIL') || 'support@inventorymanager.com',
+          email: supportEmail,
+        },
+      };
+
+      const payload = {
+        ...basePayload,
+        templateId: resetTemplateId,
+        params: {
+          resetLink,
+          name: userName || email.split('@')[0],
         },
       };
 
       await this.makeBrevoApiRequest(brevoApiKey, payload);
-      this.logger.log(`Password reset email sent successfully to ${email}`);
+      this.logger.log(`Password reset link email sent successfully to ${email}`);
       return true;
     } catch (error) {
-      this.logger.error(`Failed to send password reset email to ${email}:`, error.message);
+      this.logger.error(`Failed to send password reset link email to ${email}:`, error.message);
       throw error;
     }
   }
@@ -102,6 +157,7 @@ export class EmailService {
         method: 'POST',
         headers: {
           'api-key': apiKey,
+          Accept: 'application/json',
           'Content-Type': 'application/json',
           'Content-Length': Buffer.byteLength(payloadString),
         },
@@ -116,6 +172,15 @@ export class EmailService {
 
         res.on('end', () => {
           try {
+            if (!data) {
+              if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
+                resolve({});
+                return;
+              }
+              reject(new Error(`Brevo API error: HTTP ${res.statusCode}`));
+              return;
+            }
+
             const parsed = JSON.parse(data);
             if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
               resolve(parsed);
@@ -124,6 +189,10 @@ export class EmailService {
               reject(new Error(`Brevo API error: ${errorMsg}`));
             }
           } catch (e) {
+            if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
+              resolve({});
+              return;
+            }
             reject(new Error(`Failed to parse Brevo API response: ${e.message}`));
           }
         });
@@ -131,6 +200,10 @@ export class EmailService {
 
       req.on('error', (error) => {
         reject(new Error(`Request to Brevo API failed: ${error.message}`));
+      });
+
+      req.setTimeout(this.BREVO_TIMEOUT_MS, () => {
+        req.destroy(new Error(`Request to Brevo API timed out after ${this.BREVO_TIMEOUT_MS}ms`));
       });
 
       req.write(payloadString);
@@ -213,7 +286,7 @@ export class EmailService {
   /**
    * Generate password reset email HTML template
    */
-  private generatePasswordResetEmailTemplate(otpCode: string, userName?: string): string {
+  private generatePasswordResetEmailTemplate(resetLink: string, userName?: string): string {
     const name = userName || 'User';
     return `
       <!DOCTYPE html>
@@ -227,17 +300,6 @@ export class EmailService {
             .header { text-align: center; margin-bottom: 30px; }
             .logo { font-size: 24px; font-weight: bold; color: #1976d2; }
             .content { text-align: center; }
-            .otp-code { 
-              font-size: 36px; 
-              font-weight: bold; 
-              color: #d32f2f; 
-              letter-spacing: 5px; 
-              margin: 20px 0;
-              padding: 20px;
-              background: #ffebee;
-              border-radius: 8px;
-              font-family: monospace;
-            }
             .expiry-notice { 
               color: #666; 
               font-size: 14px; 
@@ -270,16 +332,21 @@ export class EmailService {
               </div>
               <div class="content">
                 <p>Hi ${name},</p>
-                <p>We received a request to reset your password. Use the code below:</p>
-                <div class="otp-code">${otpCode}</div>
+                <p>We received a request to reset your password. Use the secure link below:</p>
+                <p style="margin: 20px 0;">
+                  <a href="${resetLink}" style="display:inline-block; padding: 12px 18px; background: #1976d2; color: #fff; text-decoration:none; border-radius: 6px;">
+                    Reset Password
+                  </a>
+                </p>
+                <p style="word-break: break-all; color: #666; font-size: 12px;">${resetLink}</p>
                 <div class="expiry-notice">
-                  ⏱️ This code will expire in 30 minutes.
+                  ⏱️ This link will expire in 30 minutes.
                 </div>
                 <div class="warning">
                   🔒 If you didn't request this password reset, please ignore this email. Your account is safe.
                 </div>
                 <p style="margin-top: 30px; color: #666;">
-                  Never share this code with anyone, not even support staff.
+                  Never share this link with anyone, not even support staff.
                 </p>
               </div>
               <div class="footer">

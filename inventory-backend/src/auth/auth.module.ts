@@ -9,6 +9,9 @@ import { EmailService } from './email.service';
 import { OtpService } from './otp.service';
 import { EmailValidatorService } from './email-validator.service';
 import { PrismaModule } from '../prisma/prisma.module';
+import { PasswordResetService } from './password-reset.service';
+import { AuthCleanupService } from './auth-cleanup.service';
+import { OtpThrottlerGuard } from './otp-throttler.guard';
 
 @Module({
   imports: [
@@ -23,7 +26,16 @@ import { PrismaModule } from '../prisma/prisma.module';
     }),
   ],
   controllers: [AuthController],
-  providers: [JwtStrategy, AuthService, EmailService, OtpService, EmailValidatorService],
-  exports: [AuthService, EmailService, OtpService, EmailValidatorService],
+  providers: [
+    JwtStrategy,
+    AuthService,
+    EmailService,
+    OtpService,
+    EmailValidatorService,
+    PasswordResetService,
+    AuthCleanupService,
+    OtpThrottlerGuard,
+  ],
+  exports: [AuthService, EmailService, OtpService, EmailValidatorService, PasswordResetService],
 })
 export class AuthModule {}

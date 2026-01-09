@@ -33,7 +33,12 @@ if (process.env.NODE_ENV !== 'production') {
 async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
-    new FastifyAdapter({ logger: process.env.NODE_ENV === 'development' }),
+    new FastifyAdapter({
+      logger: process.env.NODE_ENV === 'development',
+      // Required for correct client IP resolution behind proxies (Render, Nginx, etc).
+      // Used by rate limiting/throttling keyed by IP.
+      trustProxy: true,
+    }),
   );
 
   // Configure Helmet with production-ready security headers

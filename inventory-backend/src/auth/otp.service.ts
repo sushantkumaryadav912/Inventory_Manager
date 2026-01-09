@@ -1,15 +1,15 @@
 import { Injectable, BadRequestException, UnauthorizedException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from './email.service';
+import * as bcrypt from 'bcrypt';
+import { randomInt } from 'crypto';
 
 @Injectable()
 export class OtpService {
   private readonly logger = new Logger(OtpService.name);
   private readonly OTP_LENGTH = 6;
-  private readonly OTP_EXPIRY_MINUTES = {
-    email_verification: 10,
-    password_reset: 30,
-  };
+  private readonly OTP_SALT_ROUNDS = 10;
+  private readonly OTP_EXPIRY_MINUTES = 10;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -20,74 +20,75 @@ export class OtpService {
    * Generate a random OTP code
    */
   private generateOtpCode(): string {
-    const min = Math.pow(10, this.OTP_LENGTH - 1);
-    const max = Math.pow(10, this.OTP_LENGTH) - 1;
-    return Math.floor(Math.random() * (max - min + 1) + min).toString();
+    // Cryptographically secure 6-digit numeric code.
+    // randomInt upper bound is exclusive.
+    return String(randomInt(100_000, 1_000_000));
   }
 
   /**
    * Request OTP for email verification (during signup)
    */
-  async requestEmailVerificationOtp(email: string, userName?: string): Promise<{
-    success: boolean;
-    message: string;
-    nextVerificationAttempt?: Date;
-  }> {
+  async requestEmailVerificationOtp(
+    email: string,
+    userName?: string,
+  ): Promise<{ success: boolean; message: string }> {
     try {
+      const normalizedEmail = email.trim().toLowerCase();
+
+      // Non-enumeration: always return the same response.
+      const response = {
+        success: true,
+        message: 'If this email is eligible, you will receive a verification code.',
+      };
+
       // Email verification OTP is for existing users (created during signup)
       const user = await this.prisma.users.findUnique({
-        where: { email },
+        where: { email: normalizedEmail },
+        select: { id: true, email: true },
       });
 
       if (!user) {
-        throw new BadRequestException('User not found. Please sign up again.');
+        return response;
       }
 
       // Check if too many OTP requests in short time (rate limiting)
       const recentOtps = await this.prisma.otp_tokens.findMany({
         where: {
-          email,
+          email: normalizedEmail,
           type: 'email_verification',
           created_at: {
             gte: new Date(Date.now() - 2 * 60 * 1000), // Last 2 minutes
           },
         },
+        orderBy: { created_at: 'asc' },
       });
 
       if (recentOtps.length >= 3) {
-        const oldestOtp = recentOtps[0];
-        const nextAttempt = new Date(oldestOtp.created_at.getTime() + 15 * 60 * 1000); // 15 min cooldown
-        
-        throw new BadRequestException(
-          `Too many OTP requests. Please try again after ${nextAttempt.toISOString()}`,
-        );
+        return response;
       }
 
       // Generate OTP
       const otpCode = this.generateOtpCode();
-      const expiryMinutes = this.OTP_EXPIRY_MINUTES.email_verification;
-      const expiresAt = new Date(Date.now() + expiryMinutes * 60 * 1000);
+      const otpHash = await bcrypt.hash(otpCode, this.OTP_SALT_ROUNDS);
+      const expiresAt = new Date(Date.now() + this.OTP_EXPIRY_MINUTES * 60 * 1000);
 
       // Save OTP to database
       await this.prisma.otp_tokens.create({
         data: {
           user_id: user.id,
-          email,
-          otp_code: otpCode,
+          email: normalizedEmail,
+          otp_code: otpHash,
           type: 'email_verification',
           expires_at: expiresAt,
         },
       });
 
       // Send OTP via email
-      await this.emailService.sendOtpEmail(email, otpCode, userName);
+      await this.emailService.sendOtpEmail(normalizedEmail, otpCode, userName);
 
-      this.logger.log(`Email verification OTP requested for ${email}`);
+      this.logger.log(`Email verification OTP requested for ${normalizedEmail}`);
 
-      return {
-        success: true,
-        message: `Verification code sent to ${email}. It will expire in ${expiryMinutes} minutes.`,
-      };
+      return response;
     } catch (error) {
       this.logger.error(`Failed to request OTP for ${email}:`, error);
       throw error;
@@ -102,29 +103,40 @@ export class OtpService {
     message: string;
   }> {
     try {
-      if (!otpCode || otpCode.length !== this.OTP_LENGTH) {
+      const normalizedEmail = email.trim().toLowerCase();
+
+      if (!otpCode || !new RegExp(`^\\d{${this.OTP_LENGTH}}$`).test(otpCode)) {
         throw new BadRequestException(
           `Invalid OTP format. Expected ${this.OTP_LENGTH} digits.`,
         );
       }
 
-      // Find valid OTP
-      const otp = await this.prisma.otp_tokens.findFirst({
+      // Find a matching (hashed) OTP among recent, unexpired tokens
+      const candidates = await this.prisma.otp_tokens.findMany({
         where: {
-          email,
-          otp_code: otpCode,
+          email: normalizedEmail,
           type: 'email_verification',
           is_used: false,
           expires_at: {
             gte: new Date(), // Not expired
           },
         },
+        orderBy: { created_at: 'desc' },
+        take: 10,
       });
 
+      const otp = await (async () => {
+        for (const candidate of candidates) {
+          const isMatch = await bcrypt.compare(otpCode, candidate.otp_code);
+          if (isMatch) return candidate;
+        }
+        return null;
+      })();
+
       if (!otp) {
-        this.logger.warn(`Invalid or expired OTP attempt for ${email}`);
+        this.logger.warn(`Invalid or expired OTP attempt for ${normalizedEmail}`);
         throw new UnauthorizedException(
-          'Invalid or expired OTP. Please request a new code.',
+          'Invalid or expired OTP.',
         );
       }
 
@@ -136,14 +148,14 @@ export class OtpService {
 
       // Mark user as verified
       await this.prisma.users.update({
-        where: { email },
+        where: { email: normalizedEmail },
         data: {
           email_verified: true,
           email_verified_at: new Date(),
         },
       });
 
-      this.logger.log(`Email OTP verified for ${email}`);
+      this.logger.log(`Email OTP verified for ${normalizedEmail}`);
 
       return {
         success: true,
@@ -151,131 +163,6 @@ export class OtpService {
       };
     } catch (error) {
       this.logger.error(`Failed to verify OTP for ${email}:`, error);
-      throw error;
-    }
-  }
-
-  /**
-   * Request OTP for password reset
-   */
-  async requestPasswordResetOtp(email: string, userName?: string): Promise<{
-    success: boolean;
-    message: string;
-  }> {
-    try {
-      // Check if user exists
-      const user = await this.prisma.users.findUnique({
-        where: { email },
-      });
-
-      if (!user) {
-        // Don't reveal if email exists (security best practice)
-        throw new BadRequestException(
-          'If this email is registered, you will receive a password reset code.',
-        );
-      }
-
-      // Check rate limiting
-      const recentOtps = await this.prisma.otp_tokens.findMany({
-        where: {
-          email,
-          type: 'password_reset',
-          created_at: {
-            gte: new Date(Date.now() - 2 * 60 * 1000),
-          },
-        },
-      });
-
-      if (recentOtps.length >= 3) {
-        const oldestOtp = recentOtps[0];
-        const nextAttempt = new Date(oldestOtp.created_at.getTime() + 30 * 60 * 1000);
-        
-        throw new BadRequestException(
-          `Too many password reset requests. Please try again after ${nextAttempt.toISOString()}`,
-        );
-      }
-
-      // Generate OTP
-      const otpCode = this.generateOtpCode();
-      const expiryMinutes = this.OTP_EXPIRY_MINUTES.password_reset;
-      const expiresAt = new Date(Date.now() + expiryMinutes * 60 * 1000);
-
-      // Save OTP
-      await this.prisma.otp_tokens.create({
-        data: {
-          user_id: user.id,
-          email,
-          otp_code: otpCode,
-          type: 'password_reset',
-          expires_at: expiresAt,
-        },
-      });
-
-      // Send OTP via email
-      await this.emailService.sendPasswordResetEmail(email, otpCode, user.name ?? undefined);
-
-      this.logger.log(`Password reset OTP requested for ${email}`);
-
-      return {
-        success: true,
-        message: 'If this email is registered, you will receive a password reset code.',
-      };
-    } catch (error) {
-      this.logger.error(`Failed to request password reset OTP for ${email}:`, error);
-      throw error;
-    }
-  }
-
-  /**
-   * Verify password reset OTP
-   */
-  async verifyPasswordResetOtp(email: string, otpCode: string): Promise<{
-    success: boolean;
-    message: string;
-    userId: string;
-  }> {
-    try {
-      if (!otpCode || otpCode.length !== this.OTP_LENGTH) {
-        throw new BadRequestException(
-          `Invalid OTP format. Expected ${this.OTP_LENGTH} digits.`,
-        );
-      }
-
-      // Find valid OTP
-      const otp = await this.prisma.otp_tokens.findFirst({
-        where: {
-          email,
-          otp_code: otpCode,
-          type: 'password_reset',
-          is_used: false,
-          expires_at: {
-            gte: new Date(),
-          },
-        },
-      });
-
-      if (!otp) {
-        this.logger.warn(`Invalid or expired password reset OTP for ${email}`);
-        throw new UnauthorizedException(
-          'Invalid or expired OTP. Please request a new code.',
-        );
-      }
-
-      // Mark as used
-      await this.prisma.otp_tokens.update({
-        where: { id: otp.id },
-        data: { is_used: true },
-      });
-
-      this.logger.log(`Password reset OTP verified for ${email}`);
-
-      return {
-        success: true,
-        message: 'OTP verified. You can now reset your password.',
-        userId: otp.user_id,
-      };
-    } catch (error) {
-      this.logger.error(`Failed to verify password reset OTP for ${email}:`, error);
       throw error;
     }
   }
@@ -306,42 +193,4 @@ export class OtpService {
     }
   }
 
-  /**
-   * Get OTP status for debugging (development only)
-   */
-  async getOtpStatus(email: string): Promise<{
-    pendingVerification: number;
-    pendingPasswordReset: number;
-    lastVerificationAttempt?: Date;
-  }> {
-    const verificationOtps = await this.prisma.otp_tokens.findMany({
-      where: {
-        email,
-        type: 'email_verification',
-        is_used: false,
-        expires_at: { gte: new Date() },
-      },
-    });
-
-    const passwordResetOtps = await this.prisma.otp_tokens.findMany({
-      where: {
-        email,
-        type: 'password_reset',
-        is_used: false,
-        expires_at: { gte: new Date() },
-      },
-    });
-
-    const allOtps = await this.prisma.otp_tokens.findMany({
-      where: { email },
-      orderBy: { created_at: 'desc' },
-      take: 1,
-    });
-
-    return {
-      pendingVerification: verificationOtps.length,
-      pendingPasswordReset: passwordResetOtps.length,
-      lastVerificationAttempt: allOtps[0]?.created_at,
-    };
-  }
 }

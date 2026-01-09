@@ -7,7 +7,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ZodValidationPipe } from 'nestjs-zod';
-import { NeonAuthGuard } from '../auth/auth.guard';
+import { JwtAuthGuard } from '../auth/jwt.guard';
 import { ShopGuard } from '../common/guards/shop.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { RequireRoles } from '../common/decorators/roles.decorator';
@@ -16,7 +16,7 @@ import { CustomersService } from './customers.service';
 import { CustomerSchema } from './contacts.schemas';
 
 @Controller('customers')
-@UseGuards(NeonAuthGuard, ShopGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, ShopGuard, RolesGuard)
 export class CustomersController {
   constructor(private readonly customersService: CustomersService) {}
 
