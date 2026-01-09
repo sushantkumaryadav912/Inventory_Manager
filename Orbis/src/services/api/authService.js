@@ -85,13 +85,23 @@ class AuthService {
   }
 
   /**
-   * Reset password using OTP
+   * Request password reset (reset-link email)
    */
-  async resetPassword(email, otpCode, newPassword) {
-    const response = await apiClient.post('/auth/reset-password', {
+  async requestPasswordReset(email) {
+    const response = await apiClient.post('/auth/request-password-reset', {
       email,
-      otp_code: otpCode,
-      new_password: newPassword,
+    });
+    return response.data; // { success, message }
+  }
+
+  /**
+   * Reset password using reset token (from email link)
+   */
+  async resetPasswordWithToken(userId, token, newPassword) {
+    const response = await apiClient.post('/auth/reset-password', {
+      userId,
+      token,
+      newPassword,
     });
     return response.data; // { success, message }
   }
