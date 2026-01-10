@@ -12,9 +12,9 @@ import { PERMISSIONS } from '../../utils/constants';
 import { colors, spacing, typography } from '../../theme';
 
 const SettingsHomeScreen = ({ navigation }) => {
-  const { logout, userId, role } = useAuth();
+  const { logout, user: contextUser, role } = useAuth();
   const { can } = usePermissions();
-  const [userData, setUserData] = useState(null);
+  const [userData, setUserData] = useState(contextUser);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -24,11 +24,14 @@ const SettingsHomeScreen = ({ navigation }) => {
   const loadUserData = async () => {
     try {
       setIsLoading(true);
-      const user = await authService.getCurrentUser();
+      const response = await authService.getCurrentUser();
+      // API returns { user: {...} } format
+      const user = response?.user || response;
       setUserData(user);
     } catch (error) {
       console.error('Failed to load user data:', error);
-      showErrorAlert(error, 'Failed to load user profile');
+      // Fallback to context user if API fails
+      setUserData(contextUser);
     } finally {
       setIsLoading(false);
     }
