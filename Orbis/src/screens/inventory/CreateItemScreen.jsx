@@ -222,16 +222,16 @@ const CreateItemScreen = ({ route, navigation }) => {
           <Button
             variant="outline"
             onPress={() => navigation.goBack()}
-            fullWidth
+            style={styles.actionButton}
           >
             Cancel
           </Button>
           <Button
             onPress={handleSubmit}
             loading={isSubmitting}
-            fullWidth
+            style={styles.actionButton}
           >
-            {isEditMode ? 'Update Item' : 'Create Item'}
+            {isEditMode ? 'Update' : 'Create'}
           </Button>
         </View>
       </ScrollView>
@@ -265,6 +265,9 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     paddingTop: spacing.xl,
     paddingBottom: spacing.xl,
+  },
+  actionButton: {
+    flex: 1,
   },
   scrollContent: {
     paddingBottom: spacing.xl * 3,
