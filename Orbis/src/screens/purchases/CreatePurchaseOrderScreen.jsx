@@ -148,15 +148,49 @@ const CreatePurchaseOrderScreen = ({ navigation }) => {
         <Text style={styles.title}>New Purchase Order</Text>
 
         <View style={styles.form}>
-          <Dropdown
-            label="Supplier *"
-            placeholder="Choose a supplier for this order"
-            value={formData.supplierId}
-            items={supplierDropdownItems}
-            onSelect={(value) => handleInputChange('supplierId', value)}
-            error={errors.supplierId}
-            helperText="Select the supplier providing these items"
-          />
+          <View style={styles.supplierSection}>
+            <Dropdown
+              label="Supplier *"
+              placeholder="Choose a supplier for this order"
+              value={formData.supplierId}
+              items={supplierDropdownItems}
+              onSelect={(value) => handleInputChange('supplierId', value)}
+              error={errors.supplierId}
+              helperText="Select the supplier providing these items"
+              style={styles.supplierDropdown}
+            />
+            <Button
+              variant="outline"
+              onPress={() => {
+                Alert.prompt(
+                  'Add New Supplier',
+                  'Enter supplier name',
+                  [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                      text: 'Add',
+                      onPress: async (name) => {
+                        if (name && name.trim()) {
+                          try {
+                            const newSupplier = await purchaseService.createSupplier({ name: name.trim() });
+                            setSuppliers(prev => [...prev, newSupplier]);
+                            setFormData(prev => ({ ...prev, supplierId: newSupplier.id }));
+                            showSuccessAlert('Supplier added successfully');
+                          } catch (error) {
+                            showErrorAlert(error, 'Failed to add supplier');
+                          }
+                        }
+                      },
+                    },
+                  ],
+                  'plain-text'
+                );
+              }}
+              style={styles.addSupplierButton}
+            >
+              + Add
+            </Button>
+          </View>
 
           <DatePicker
             label="Order Date *"
@@ -204,7 +238,7 @@ const CreatePurchaseOrderScreen = ({ navigation }) => {
                 onChangeText={(value) => setLineItem((prev) => ({ ...prev, quantity: value }))}
                 keyboardType="numeric"
                 error={errors.quantity}
-                style={styles.rowItem}
+                style={styles.quantityInput}
               />
 
               <Input
@@ -214,7 +248,7 @@ const CreatePurchaseOrderScreen = ({ navigation }) => {
                 onChangeText={(value) => setLineItem((prev) => ({ ...prev, costPrice: value }))}
                 keyboardType="decimal-pad"
                 error={errors.costPrice}
-                style={styles.rowItem}
+                style={styles.costInput}
               />
             </View>
 
@@ -282,6 +316,24 @@ const styles = StyleSheet.create({
   },
   rowItem: {
     flex: 1,
+  },
+  quantityInput: {
+    flex: 2,
+  },
+  costInput: {
+    flex: 1,
+  },
+  supplierSection: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    alignItems: 'flex-start',
+  },
+  supplierDropdown: {
+    flex: 1,
+  },
+  addSupplierButton: {
+    marginTop: 24,
+    paddingHorizontal: spacing.md,
   },
   inlineError: {
     marginTop: spacing.xs,
