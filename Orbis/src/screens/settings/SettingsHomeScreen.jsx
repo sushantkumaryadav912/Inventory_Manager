@@ -205,8 +205,7 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.xs,
     color: colors.text.secondary,
     textTransform: 'uppercase',
-    fontWeight: typography.fontWeight.medium
-    marginRight: spacing.md,
+    fontWeight: typography.fontWeight.medium,
   },
   userInfo: {
     flex: 1,
