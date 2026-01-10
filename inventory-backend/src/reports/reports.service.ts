@@ -264,7 +264,7 @@ export class ReportsService {
         });
 
         return {
-          id: item.product_id ?? undefined,
+          id: (item.product_id || undefined) as string | undefined,
           name: product?.name ?? 'Unknown Product',
           quantity: item._sum.quantity ?? 0,
           revenue: this.toNumber(item._sum.selling_price),
@@ -361,7 +361,7 @@ export class ReportsService {
         });
 
         return {
-          id: item.supplier_id ?? undefined,
+          id: (item.supplier_id || undefined) as string | undefined,
           name: supplier?.name ?? 'Unknown Supplier',
           orders: item._count,
           totalSpent: this.toNumber(item._sum.total_cost),
