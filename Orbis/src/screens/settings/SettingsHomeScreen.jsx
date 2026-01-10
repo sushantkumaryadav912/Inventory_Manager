@@ -199,7 +199,11 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    baEmail: {
+    backgroundColor: colors.primary.light,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  userEmail: {
     fontSize: typography.fontSize.sm,
     color: colors.text.secondary,
     marginBottom: spacing.xs,
@@ -218,10 +222,6 @@ const styles = StyleSheet.create({
     fontWeight: typography.fontWeight.semibold,
     color: colors.text.primary,
     marginBottom: spacing.xs,
-  },
-  userRole: {
-    fontSize: typography.fontSize.sm,
-    color: colors.text.secondary,
   },
   section: {
     marginBottom: spacing.xl,
