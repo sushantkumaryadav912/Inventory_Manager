@@ -29,7 +29,7 @@ const MainTabsNavigator = () => {
         tabBarInactiveTintColor: colors.gray[500],
         tabBarStyle: {
           height: 60,
-          paddingBottom: 8,
+          paddingBottom: 12,
           paddingTop: 8,
           borderTopWidth: 1,
           borderTopColor: colors.border.light,
@@ -62,7 +62,7 @@ const MainTabsNavigator = () => {
               iconName = 'ellipse-outline';
           }
 
-          return <Ionicons name={iconName} size={size} color={color} />;
+          return <Ionicons name={iconName} size={26} color={color} />;
         },
       })}
     >
