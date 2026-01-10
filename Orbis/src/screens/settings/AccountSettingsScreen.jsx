@@ -167,7 +167,7 @@ const AccountSettingsScreen = ({ navigation }) => {
             <Text style={styles.neonText}>
               Your account is connected via Neon authentication
             </Text>
-            <Text style={styles.userId}>User ID: {userId}</Text>
+            <Text style={styles.userId}>User ID: {currentUser?.id || 'N/A'}</Text>
           </Card>
         </View>
 
