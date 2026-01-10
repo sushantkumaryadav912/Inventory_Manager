@@ -244,6 +244,7 @@ export class ReportsService {
           shop_id: shopId,
           created_at: { gte: from, lte: to },
         },
+        product_id: { not: null },
       },
       _sum: {
         quantity: true,
@@ -257,14 +258,18 @@ export class ReportsService {
       take: 5,
     });
 
+    type TopItem = (typeof topItems)[number];
+    const hasProductId = (item: TopItem): item is TopItem & { product_id: string } =>
+      typeof item.product_id === 'string' && item.product_id.length > 0;
+
     const topProducts = await Promise.all(
-      topItems.map(async (item) => {
+      topItems.filter(hasProductId).map(async (item) => {
         const product = await this.prisma.products.findUnique({
           where: { id: item.product_id },
         });
 
         return {
-          id: (item.product_id || undefined) as string | undefined,
+          id: item.product_id,
           name: product?.name ?? 'Unknown Product',
           quantity: item._sum.quantity ?? 0,
           revenue: this.toNumber(item._sum.selling_price),
@@ -354,14 +359,20 @@ export class ReportsService {
       take: 5,
     });
 
+    type TopSupplierItem = (typeof topSupplierData)[number];
+    const hasSupplierId = (
+      item: TopSupplierItem,
+    ): item is TopSupplierItem & { supplier_id: string } =>
+      typeof item.supplier_id === 'string' && item.supplier_id.length > 0;
+
     const topSuppliers = await Promise.all(
-      topSupplierData.map(async (item) => {
+      topSupplierData.filter(hasSupplierId).map(async (item) => {
         const supplier = await this.prisma.suppliers.findUnique({
           where: { id: item.supplier_id },
         });
 
         return {
-          id: (item.supplier_id || undefined) as string | undefined,
+          id: item.supplier_id,
           name: supplier?.name ?? 'Unknown Supplier',
           orders: item._count,
           totalSpent: this.toNumber(item._sum.total_cost),
