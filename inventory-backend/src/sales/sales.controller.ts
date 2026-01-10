@@ -2,6 +2,8 @@ import {
   Body,
   Controller,
   Get,
+  NotFoundException,
+  Param,
   Post,
   Req,
   UseGuards,
@@ -39,5 +41,15 @@ export class SalesController {
   @RequireRoles(Roles.OWNER, Roles.MANAGER)
   async list(@Req() req) {
     return this.salesService.listSales(req.shop.shopId);
+  }
+
+  @Get(':id')
+  @RequireRoles(Roles.OWNER, Roles.MANAGER)
+  async getById(@Req() req, @Param('id') id: string) {
+    const sale = await this.salesService.getSaleById(req.shop.shopId, id);
+    if (!sale) {
+      throw new NotFoundException('Sale order not found');
+    }
+    return sale;
   }
 }

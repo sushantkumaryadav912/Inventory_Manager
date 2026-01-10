@@ -129,4 +129,28 @@ export class SalesService {
       orderBy: { created_at: 'desc' },
     });
   }
+
+  async getSaleById(shopId: string, saleId: string) {
+    return this.prisma.sales.findFirst({
+      where: {
+        id: saleId,
+        shop_id: shopId,
+      },
+      include: {
+        sale_items: {
+          include: {
+            products: true,
+          },
+        },
+        customers: true,
+        users: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
+    });
+  }
 }

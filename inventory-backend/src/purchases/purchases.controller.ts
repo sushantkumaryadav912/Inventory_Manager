@@ -2,6 +2,8 @@ import {
   Body,
   Controller,
   Get,
+  NotFoundException,
+  Param,
   Post,
   Req,
   UseGuards,
@@ -38,5 +40,18 @@ export class PurchasesController {
   @RequireRoles(Roles.OWNER, Roles.MANAGER)
   async list(@Req() req) {
     return this.purchasesService.listPurchases(req.shop.shopId);
+  }
+
+  @Get(':id')
+  @RequireRoles(Roles.OWNER, Roles.MANAGER)
+  async getById(@Req() req, @Param('id') id: string) {
+    const purchase = await this.purchasesService.getPurchaseById(
+      req.shop.shopId,
+      id,
+    );
+    if (!purchase) {
+      throw new NotFoundException('Purchase order not found');
+    }
+    return purchase;
   }
 }

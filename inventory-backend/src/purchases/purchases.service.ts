@@ -108,4 +108,28 @@ export class PurchasesService {
       orderBy: { created_at: 'desc' },
     });
   }
+
+  async getPurchaseById(shopId: string, purchaseId: string) {
+    return this.prisma.purchases.findFirst({
+      where: {
+        id: purchaseId,
+        shop_id: shopId,
+      },
+      include: {
+        purchase_items: {
+          include: {
+            products: true,
+          },
+        },
+        suppliers: true,
+        users: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
+    });
+  }
 }
