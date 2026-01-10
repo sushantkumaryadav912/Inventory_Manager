@@ -1,6 +1,6 @@
 // src/screens/purchases/CreatePurchaseOrderScreen.jsx
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert } from 'react-native';
 import { ScreenWrapper } from '../../components/layout';
 import { Input, Dropdown, Button, DatePicker } from '../../components/ui';
 import { inventoryService, purchaseService } from '../../services/api';
@@ -150,7 +150,25 @@ const CreatePurchaseOrderScreen = ({ navigation }) => {
       const newSupplier = await purchaseService.createSupplier({ name: newSupplierName.trim() });
       setSuppliers(prev => [...prev, newSupplier]);
       setFormData(prev => ({ ...prev, supplierId: newSupplier.id }));
-      setNeDropdown
+      setNewSupplierName('');
+      setShowAddSupplier(false);
+      showSuccessAlert('Supplier added successfully');
+    } catch (error) {
+      showErrorAlert(error, 'Failed to add supplier');
+    }
+  };
+
+  return (
+    <ScreenWrapper>
+      <ScrollView 
+        style={styles.container}
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+      >
+        <Text style={styles.title}>New Purchase Order</Text>
+
+        <View style={styles.form}>
+          <Dropdown
             label="Supplier *"
             placeholder="Choose a supplier for this order"
             value={formData.supplierId}
@@ -196,25 +214,7 @@ const CreatePurchaseOrderScreen = ({ navigation }) => {
                 </Button>
               </View>
             </View>
-          )}           const newSupplier = await purchaseService.createSupplier({ name: name.trim() });
-                            setSuppliers(prev => [...prev, newSupplier]);
-                            setFormData(prev => ({ ...prev, supplierId: newSupplier.id }));
-                            showSuccessAlert('Supplier added successfully');
-                          } catch (error) {
-                            showErrorAlert(error, 'Failed to add supplier');
-                          }
-                        }
-                      },
-                    },
-                  ],
-                  'plain-text'
-                );
-              }}
-              style={styles.addSupplierButton}
-            >
-              + Add
-            </Button>
-          </View>
+          )}
 
           <DatePicker
             label="Order Date *"
@@ -343,6 +343,10 @@ const styles = StyleSheet.create({
   },
   quantityInput: {
     flex: 2,
+  },
+  costInput: {
+    flex: 1,
+  },
   addSupplierToggle: {
     marginTop: spacing.sm,
   },
@@ -358,11 +362,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
   },
   addSupplierAction: {
-    flex: 1
-  },
-  addSupplierButton: {
-    marginTop: 24,
-    paddingHorizontal: spacing.md,
+    flex: 1,
   },
   inlineError: {
     marginTop: spacing.xs,
