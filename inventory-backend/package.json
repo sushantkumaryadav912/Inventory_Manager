@@ -17,7 +17,7 @@
     "start": "node dist/src/main.js",
     "start:dev": "npx nest start --watch",
     "start:debug": "npx nest start --debug --watch",
-    "prestart:prod": "echo 'Skipping prestart build (Render already ran npm run build)'",
+    "prestart:prod": "echo 'Running prisma migrate deploy' && prisma migrate deploy",
     "start:prod": "node dist/src/main.js",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "test": "jest",
