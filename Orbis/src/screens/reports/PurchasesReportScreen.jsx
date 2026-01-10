@@ -30,14 +30,20 @@ const PurchasesReportScreen = () => {
     }
   };
 
-  const monthlyPurchasesData = [
-    { label: 'Jan', value: 40000, color: colors.warning.main },
-    { label: 'Feb', value: 52000, color: colors.warning.main },
-    { label: 'Mar', value: 45000, color: colors.warning.main },
-    { label: 'Apr', value: 60000, color: colors.warning.main },
-    { label: 'May', value: 55000, color: colors.warning.main },
-    { label: 'Jun', value: 70000, color: colors.warning.main },
-  ];
+  const monthlyPurchasesData = report?.monthlyPurchases && report.monthlyPurchases.length > 0
+    ? report.monthlyPurchases.map(item => ({
+        label: item.month || item.label,
+        value: item.value || item.purchases || 0,
+        color: colors.warning.main,
+      }))
+    : [
+        { label: 'Jan', value: 0, color: colors.warning.main },
+        { label: 'Feb', value: 0, color: colors.warning.main },
+        { label: 'Mar', value: 0, color: colors.warning.main },
+        { label: 'Apr', value: 0, color: colors.warning.main },
+        { label: 'May', value: 0, color: colors.warning.main },
+        { label: 'Jun', value: 0, color: colors.warning.main },
+      ];
 
   return (
     <ScreenWrapper>
@@ -85,18 +91,24 @@ const PurchasesReportScreen = () => {
         {/* Top Suppliers */}
         <Section title="Top Suppliers">
           <Card>
-            {[1, 2, 3, 4, 5].map((item) => (
-              <View key={item} style={styles.supplierItem}>
-                <View style={styles.supplierLeft}>
-                  <Text style={styles.rank}>#{item}</Text>
-                  <View style={styles.supplierInfo}>
-                    <Text style={styles.supplierName}>Supplier {item}</Text>
-                    <Text style={styles.supplierOrders}>12 orders</Text>
+            {(report?.topSuppliers && report.topSuppliers.length > 0) ? (
+              report.topSuppliers.map((supplier, index) => (
+                <View key={supplier.id || index} style={styles.supplierItem}>
+                  <View style={styles.supplierLeft}>
+                    <Text style={styles.rank}>#{index + 1}</Text>
+                    <View style={styles.supplierInfo}>
+                      <Text style={styles.supplierName}>{supplier.name || `Supplier ${index + 1}`}</Text>
+                      <Text style={styles.supplierOrders}>{supplier.orders || 0} orders</Text>
+                    </View>
                   </View>
+                  <Text style={styles.supplierAmount}>{formatCurrency(supplier.amount || 0)}</Text>
                 </View>
-                <Text style={styles.supplierAmount}>{formatCurrency(150000)}</Text>
+              ))
+            ) : (
+              <View style={styles.emptySuppliers}>
+                <Text style={styles.emptyText}>No purchase data available</Text>
               </View>
-            ))}
+            )}
           </Card>
         </Section>
       </ScrollView>
@@ -176,6 +188,14 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.lg,
     fontWeight: typography.fontWeight.bold,
     color: colors.warning.main,
+  },
+  emptySuppliers: {
+    padding: spacing.xl,
+    alignItems: 'center',
+  },
+  emptyText: {
+    fontSize: typography.fontSize.base,
+    color: colors.text.secondary,
   },
 });
 

@@ -24,6 +24,12 @@ const RecordSaleScreen = ({ navigation }) => {
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const isUuid = (value) => {
+    if (typeof value !== 'string') return false;
+    const v = value.trim();
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
+  };
+
   useEffect(() => {
     const loadInventory = async () => {
       try {
@@ -65,6 +71,11 @@ const RecordSaleScreen = ({ navigation }) => {
 
     if (!formData.orderDate) {
       newErrors.orderDate = 'Order date is required';
+    }
+
+    const customerId = (formData.customerId || '').trim();
+    if (customerId && !isUuid(customerId)) {
+      newErrors.customerId = 'Customer ID must be a valid UUID';
     }
 
     if (!items.length) {
@@ -117,8 +128,9 @@ const RecordSaleScreen = ({ navigation }) => {
       setIsSubmitting(true);
 
       // Backend contract (CreateSaleSchema): { customerId?: uuid, paymentMethod, items: [{productId, quantity, sellingPrice}] }
+      const customerId = (formData.customerId || '').trim();
       const saleData = {
-        customerId: formData.customerId || undefined,
+        ...(customerId ? { customerId } : {}),
         paymentMethod: formData.paymentMethod,
         items,
       };

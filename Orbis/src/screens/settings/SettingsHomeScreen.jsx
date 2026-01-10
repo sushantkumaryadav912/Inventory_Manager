@@ -233,6 +233,7 @@ const styles = StyleSheet.create({
     color: colors.text.secondary,
     textAlign: 'center',
     marginBottom: spacing.xl,
+    paddingBottom: spacing.xl,
   },
 });
 

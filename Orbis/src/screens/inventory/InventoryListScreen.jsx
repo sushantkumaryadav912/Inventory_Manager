@@ -146,6 +146,7 @@ const styles = StyleSheet.create({
   },
   list: {
     padding: spacing.md,
+    paddingBottom: spacing.xl * 2,
     flexGrow: 1,
   },
 });

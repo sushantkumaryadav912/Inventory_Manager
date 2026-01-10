@@ -30,14 +30,20 @@ const SalesReportScreen = () => {
     }
   };
 
-  const monthlySalesData = [
-    { label: 'Jan', value: 50000, color: colors.success.main },
-    { label: 'Feb', value: 65000, color: colors.success.main },
-    { label: 'Mar', value: 58000, color: colors.success.main },
-    { label: 'Apr', value: 72000, color: colors.success.main },
-    { label: 'May', value: 68000, color: colors.success.main },
-    { label: 'Jun', value: 85000, color: colors.success.main },
-  ];
+  const monthlySalesData = report?.monthlySales && report.monthlySales.length > 0
+    ? report.monthlySales.map(item => ({
+        label: item.month || item.label,
+        value: item.value || item.sales || 0,
+        color: colors.success.main,
+      }))
+    : [
+        { label: 'Jan', value: 0, color: colors.success.main },
+        { label: 'Feb', value: 0, color: colors.success.main },
+        { label: 'Mar', value: 0, color: colors.success.main },
+        { label: 'Apr', value: 0, color: colors.success.main },
+        { label: 'May', value: 0, color: colors.success.main },
+        { label: 'Jun', value: 0, color: colors.success.main },
+      ];
 
   return (
     <ScreenWrapper>
@@ -86,18 +92,24 @@ const SalesReportScreen = () => {
         {/* Top Products */}
         <Section title="Best Selling Products">
           <Card>
-            {[1, 2, 3, 4, 5].map((item) => (
-              <View key={item} style={styles.productItem}>
-                <View style={styles.productLeft}>
-                  <Text style={styles.rank}>#{item}</Text>
-                  <View style={styles.productInfo}>
-                    <Text style={styles.productName}>Product {item}</Text>
-                    <Text style={styles.productQuantity}>50 units sold</Text>
+            {(report?.topProducts && report.topProducts.length > 0) ? (
+              report.topProducts.map((product, index) => (
+                <View key={product.id || index} style={styles.productItem}>
+                  <View style={styles.productLeft}>
+                    <Text style={styles.rank}>#{index + 1}</Text>
+                    <View style={styles.productInfo}>
+                      <Text style={styles.productName}>{product.name || `Product ${index + 1}`}</Text>
+                      <Text style={styles.productQuantity}>{product.quantity || 0} units sold</Text>
+                    </View>
                   </View>
+                  <Text style={styles.productRevenue}>{formatCurrency(product.revenue || 0)}</Text>
                 </View>
-                <Text style={styles.productRevenue}>{formatCurrency(25000)}</Text>
+              ))
+            ) : (
+              <View style={styles.emptyProducts}>
+                <Text style={styles.emptyText}>No sales data available</Text>
               </View>
-            ))}
+            )}
           </Card>
         </Section>
       </ScrollView>
@@ -177,6 +189,14 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.lg,
     fontWeight: typography.fontWeight.bold,
     color: colors.success.main,
+  },
+  emptyProducts: {
+    padding: spacing.xl,
+    alignItems: 'center',
+  },
+  emptyText: {
+    fontSize: typography.fontSize.base,
+    color: colors.text.secondary,
   },
 });
 

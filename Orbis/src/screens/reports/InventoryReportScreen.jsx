@@ -30,12 +30,24 @@ const InventoryReportScreen = () => {
     }
   };
 
-  const categoryData = [
-    { label: 'Electronics', value: 45, color: colors.primary[600] },
-    { label: 'Clothing', value: 30, color: colors.success.main },
-    { label: 'Food', value: 15, color: colors.warning.main },
-    { label: 'Others', value: 10, color: colors.info.main },
-  ];
+  const categoryData = report?.categoryDistribution && report.categoryDistribution.length > 0
+    ? report.categoryDistribution.map((cat, index) => {
+        const colors_list = [
+          colors.primary[600],
+          colors.success.main,
+          colors.warning.main,
+          colors.info.main,
+          colors.error.main,
+        ];
+        return {
+          label: cat.category || cat.name || `Category ${index + 1}`,
+          value: cat.value || cat.count || 0,
+          color: colors_list[index % colors_list.length],
+        };
+      })
+    : [
+        { label: 'No Data', value: 100, color: colors.gray[300] },
+      ];
 
   return (
     <ScreenWrapper>
@@ -80,15 +92,21 @@ const InventoryReportScreen = () => {
         {/* Top Items */}
         <Section title="Top Items by Value">
           <Card>
-            {[1, 2, 3, 4, 5].map((item) => (
-              <View key={item} style={styles.topItem}>
-                <View style={styles.topItemLeft}>
-                  <Text style={styles.topItemName}>Item {item}</Text>
-                  <Text style={styles.topItemQuantity}>Qty: 100</Text>
+            {(report?.topItems && report.topItems.length > 0) ? (
+              report.topItems.map((item, index) => (
+                <View key={item.id || index} style={styles.topItem}>
+                  <View style={styles.topItemLeft}>
+                    <Text style={styles.topItemName}>{item.name || `Item ${index + 1}`}</Text>
+                    <Text style={styles.topItemQuantity}>Qty: {item.quantity || 0}</Text>
+                  </View>
+                  <Text style={styles.topItemValue}>{formatCurrency(item.value || 0)}</Text>
                 </View>
-                <Text style={styles.topItemValue}>{formatCurrency(10000)}</Text>
+              ))
+            ) : (
+              <View style={styles.emptyItems}>
+                <Text style={styles.emptyText}>No inventory data available</Text>
               </View>
-            ))}
+            )}
           </Card>
         </Section>
       </ScrollView>
@@ -162,6 +180,14 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.lg,
     fontWeight: typography.fontWeight.bold,
     color: colors.primary[600],
+  },
+  emptyItems: {
+    padding: spacing.xl,
+    alignItems: 'center',
+  },
+  emptyText: {
+    fontSize: typography.fontSize.base,
+    color: colors.text.secondary,
   },
 });
 

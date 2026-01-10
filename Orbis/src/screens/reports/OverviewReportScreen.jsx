@@ -31,15 +31,21 @@ const OverviewReportScreen = ({ navigation }) => {
     }
   };
 
-  const salesChartData = [
-    { label: 'Mon', value: 12000, color: colors.primary[600] },
-    { label: 'Tue', value: 15000, color: colors.primary[600] },
-    { label: 'Wed', value: 18000, color: colors.primary[600] },
-    { label: 'Thu', value: 13000, color: colors.primary[600] },
-    { label: 'Fri', value: 20000, color: colors.primary[600] },
-    { label: 'Sat', value: 22000, color: colors.primary[600] },
-    { label: 'Sun', value: 16000, color: colors.primary[600] },
-  ];
+  const salesChartData = stats?.weeklySales && stats.weeklySales.length > 0
+    ? stats.weeklySales.map(item => ({
+        label: item.day || item.label,
+        value: item.value || item.sales || 0,
+        color: colors.primary[600],
+      }))
+    : [
+        { label: 'Mon', value: 0, color: colors.primary[600] },
+        { label: 'Tue', value: 0, color: colors.primary[600] },
+        { label: 'Wed', value: 0, color: colors.primary[600] },
+        { label: 'Thu', value: 0, color: colors.primary[600] },
+        { label: 'Fri', value: 0, color: colors.primary[600] },
+        { label: 'Sat', value: 0, color: colors.primary[600] },
+        { label: 'Sun', value: 0, color: colors.primary[600] },
+      ];
 
   const navigateToReport = (screen) => {
     navigation.navigate(screen);
