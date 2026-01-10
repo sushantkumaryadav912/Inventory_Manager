@@ -1,17 +1,38 @@
 // src/screens/settings/SettingsHomeScreen.jsx
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { ScreenWrapper } from '../../components/layout';
+import { ScreenWrapper, LoadingOverlay } from '../../components/layout';
 import { Card } from '../../components/ui';
 import { useAuth } from '../../hooks/useAuth';
 import { usePermissions } from '../../hooks/usePermissions';
+import { authService } from '../../services/api';
+import { showErrorAlert } from '../../utils/errorHandler';
 import { PERMISSIONS } from '../../utils/constants';
 import { colors, spacing, typography } from '../../theme';
 
 const SettingsHomeScreen = ({ navigation }) => {
   const { logout, userId, role } = useAuth();
   const { can } = usePermissions();
+  const [userData, setUserData] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    loadUserData();
+  }, []);
+
+  const loadUserData = async () => {
+    try {
+      setIsLoading(true);
+      const user = await authService.getCurrentUser();
+      setUserData(user);
+    } catch (error) {
+      console.error('Failed to load user data:', error);
+      showErrorAlert(error, 'Failed to load user profile');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleLogout = () => {
     Alert.alert(
@@ -32,19 +53,33 @@ const SettingsHomeScreen = ({ navigation }) => {
 
   return (
     <ScreenWrapper>
+      {isLoading && <LoadingOverlay />}
       <ScrollView style={styles.container}>
         <Text style={styles.title}>Settings</Text>
 
         {/* User Info */}
-        <Card style={styles.userCard}>
-          <View style={styles.userIcon}>
-            <Ionicons name="person" size={32} color={colors.primary[600]} />
-          </View>
-          <View style={styles.userInfo}>
-            <Text style={styles.userName}>User ID: {userId}</Text>
-            <Text style={styles.userRole}>Role: {role?.toUpperCase()}</Text>
-          </View>
-        </Card>
+        <TouchableOpacity 
+          activeOpacity={0.7}
+          onPress={() => navigation.navigate('AccountSettings')}
+        >
+          <Card style={styles.userCard}>
+            <View style={styles.userIcon}>
+              <Ionicons name="person" size={32} color={colors.primary[600]} />
+            </View>
+            <View style={styles.userInfo}>
+              <Text style={styles.userName}>
+                {userData?.name || 'User Name'}
+              </Text>
+              <Text style={styles.userEmail}>
+                {userData?.email || 'email@example.com'}
+              </Text>
+              <Text style={styles.userRole}>
+                {role?.toUpperCase() || 'USER'}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={colors.gray[400]} />
+          </Card>
+        </TouchableOpacity>
 
         {/* Business Settings */}
         {can(PERMISSIONS.SETTINGS_MANAGE) && (
@@ -161,9 +196,16 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: colors.primary[50],
-    alignItems: 'center',
-    justifyContent: 'center',
+    baEmail: {
+    fontSize: typography.fontSize.sm,
+    color: colors.text.secondary,
+    marginBottom: spacing.xs,
+  },
+  userRole: {
+    fontSize: typography.fontSize.xs,
+    color: colors.text.secondary,
+    textTransform: 'uppercase',
+    fontWeight: typography.fontWeight.medium
     marginRight: spacing.md,
   },
   userInfo: {
