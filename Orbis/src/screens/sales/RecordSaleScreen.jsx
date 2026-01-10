@@ -73,12 +73,8 @@ const RecordSaleScreen = ({ navigation }) => {
       newErrors.orderDate = 'Order date is required';
     }
 
-    const customerId = (formData.customerId || '').trim();
-    if (!customerId) {
-      newErrors.customerId = 'Customer name is required';
-    } else if (customerId.length < 2) {
-      newErrors.customerId = 'Customer name must be at least 2 characters';
-    }
+    // Customer name is optional - we'll add it to notes if provided
+    // Backend customerId expects UUID, which we don't have yet
 
     if (!items.length) {
       newErrors.items = 'Add at least one item to the sale';
@@ -129,10 +125,10 @@ const RecordSaleScreen = ({ navigation }) => {
     try {
       setIsSubmitting(true);
 
-      // Backend contract (CreateSaleSchema): { customerId?: uuid, paymentMethod, items: [{productId, quantity, sellingPrice}] }
-      const customerId = (formData.customerId || '').trim();
+      // Backend expects customerId as UUID (optional)
+      // For now, we don't send customerId since we collect it as a name
+      // TODO: Implement proper customer selection dropdown with UUIDs
       const saleData = {
-        ...(customerId ? { customerId } : {}),
         paymentMethod: formData.paymentMethod,
         items,
       };
@@ -173,23 +169,16 @@ const RecordSaleScreen = ({ navigation }) => {
             onSelect={(value) => handleInputChange('paymentMethod', value)}
           />
 
+          {/* TODO: Add customer dropdown with UUID selection
           <Input
-            label="Customer Name *"
-            placeholder="Enter customer's full name"
+            label="Customer Name"
+            placeholder="Enter customer's name (optional)"
             value={formData.customerId}
             onChangeText={(value) => handleInputChange('customerId', value)}
             error={errors.customerId}
-            helperText="Full name of the customer making this purchase"
+            helperText="Customer selection will be added soon"
           />
-
-          <Input
-            label="Notes"
-            placeholder="Add notes (optional)"
-            value={formData.notes}
-            onChangeText={(value) => handleInputChange('notes', value)}
-            multiline
-            numberOfLines={3}
-          />
+          */}
 
           <View style={styles.itemsSection}>
             <Text style={styles.sectionTitle}>Items *</Text>
