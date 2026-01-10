@@ -4,7 +4,6 @@ import { Alert, Platform } from 'react-native';
 import Constants from 'expo-constants';
 import ENV from '../../config/env';
 import secureStorage from '../storage/secureStorage';
-import { handleApiError } from '../../utils/errorHandler';
 
 const getLanHost = () => {
   const hostUri =
@@ -45,7 +44,6 @@ const apiClient = axios.create({
   baseURL: resolveApiBaseUrl(),
   timeout: 30000,
   headers: {
-    'Content-Type': 'application/json',
     'Accept': 'application/json',
   },
 });
@@ -54,6 +52,13 @@ const apiClient = axios.create({
 apiClient.interceptors.request.use(
   async (config) => {
     try {
+      // Avoid sending JSON Content-Type for requests with no body (Fastify rejects empty JSON bodies by default).
+      if (config?.method?.toLowerCase() === 'post' && (config.data === undefined || config.data === null)) {
+        if (config.headers) {
+          delete config.headers['Content-Type'];
+        }
+      }
+
       const authData = await secureStorage.getAuth();
       
       if (authData) {
@@ -101,9 +106,8 @@ apiClient.interceptors.response.use(
       }
     }
     
-    // Handle other errors
-    const handledError = handleApiError(error);
-    return Promise.reject(handledError);
+    // Let callers format messages; keep axios error shape.
+    return Promise.reject(error);
   }
 );
 

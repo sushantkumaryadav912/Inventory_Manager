@@ -1,9 +1,9 @@
 // src/screens/purchases/CreatePurchaseOrderScreen.jsx
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Alert } from 'react-native';
 import { ScreenWrapper } from '../../components/layout';
 import { Input, Dropdown, Button, DatePicker } from '../../components/ui';
-import { purchaseService } from '../../services/api';
+import { inventoryService, purchaseService } from '../../services/api';
 import { showErrorAlert, showSuccessAlert } from '../../utils/errorHandler';
 import { colors, spacing, typography } from '../../theme';
 
@@ -14,14 +14,47 @@ const CreatePurchaseOrderScreen = ({ navigation }) => {
     expectedDate: null,
     notes: '',
   });
+  const [suppliers, setSuppliers] = useState([]);
+  const [inventoryItems, setInventoryItems] = useState([]);
+  const [lineItem, setLineItem] = useState({
+    productId: '',
+    quantity: '',
+    costPrice: '',
+  });
+  const [items, setItems] = useState([]);
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Mock suppliers - replace with actual API call
-  const suppliers = [
-    { value: '1', label: 'Supplier A' },
-    { value: '2', label: 'Supplier B' },
-  ];
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const [suppliersResponse, inventoryResponse] = await Promise.all([
+          purchaseService.getSuppliers(),
+          inventoryService.getItems(),
+        ]);
+
+        setSuppliers(Array.isArray(suppliersResponse) ? suppliersResponse : []);
+
+        const invItems = inventoryResponse?.items || [];
+        setInventoryItems(Array.isArray(invItems) ? invItems : []);
+      } catch (error) {
+        // Non-blocking; user can still try again later.
+        console.error('Failed to load suppliers/inventory:', error);
+      }
+    };
+
+    loadData();
+  }, []);
+
+  const supplierDropdownItems = useMemo(
+    () => suppliers.map((s) => ({ value: s.id, label: s.name })),
+    [suppliers],
+  );
+
+  const productDropdownItems = useMemo(
+    () => inventoryItems.map((p) => ({ value: p.id, label: `${p.name} (${p.sku})` })),
+    [inventoryItems],
+  );
 
   const handleInputChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -41,8 +74,45 @@ const CreatePurchaseOrderScreen = ({ navigation }) => {
       newErrors.orderDate = 'Order date is required';
     }
 
+    if (!items.length) {
+      newErrors.items = 'Add at least one item to the purchase';
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
+  };
+
+  const addItem = () => {
+    const nextErrors = { ...errors };
+
+    if (!lineItem.productId) {
+      nextErrors.productId = 'Select a product';
+    }
+    const qty = parseInt(lineItem.quantity, 10);
+    if (!qty || qty <= 0) {
+      nextErrors.quantity = 'Enter a valid quantity';
+    }
+    const cost = parseFloat(lineItem.costPrice);
+    if (Number.isNaN(cost) || cost < 0) {
+      nextErrors.costPrice = 'Enter a valid cost price';
+    }
+
+    setErrors(nextErrors);
+    if (nextErrors.productId || nextErrors.quantity || nextErrors.costPrice) {
+      return;
+    }
+
+    setItems((prev) => [
+      ...prev,
+      {
+        productId: lineItem.productId,
+        quantity: qty,
+        costPrice: cost,
+      },
+    ]);
+
+    setLineItem({ productId: '', quantity: '', costPrice: '' });
+    setErrors((prev) => ({ ...prev, items: undefined, productId: undefined, quantity: undefined, costPrice: undefined }));
   };
 
   const handleSubmit = async () => {
@@ -51,12 +121,10 @@ const CreatePurchaseOrderScreen = ({ navigation }) => {
     try {
       setIsSubmitting(true);
 
+      // Backend contract (CreatePurchaseSchema): { supplierId?: uuid, items: [{productId, quantity, costPrice}] }
       const orderData = {
         supplierId: formData.supplierId,
-        orderDate: formData.orderDate,
-        expectedDate: formData.expectedDate,
-        notes: formData.notes || undefined,
-        items: [], // TODO: Add items selection
+        items,
       };
 
       await purchaseService.createPurchaseOrder(orderData);
@@ -80,7 +148,7 @@ const CreatePurchaseOrderScreen = ({ navigation }) => {
             label="Supplier *"
             placeholder="Select supplier"
             value={formData.supplierId}
-            items={suppliers}
+            items={supplierDropdownItems}
             onSelect={(value) => handleInputChange('supplierId', value)}
             error={errors.supplierId}
           />
@@ -108,11 +176,51 @@ const CreatePurchaseOrderScreen = ({ navigation }) => {
             numberOfLines={3}
           />
 
-          {/* TODO: Add items selection component */}
-          <View style={styles.infoBox}>
-            <Text style={styles.infoText}>
-              💡 Item selection will be available in the next step
-            </Text>
+          <View style={styles.itemsSection}>
+            <Text style={styles.sectionTitle}>Items *</Text>
+
+            <Dropdown
+              label="Product"
+              placeholder="Select product"
+              value={lineItem.productId}
+              items={productDropdownItems}
+              onSelect={(value) => setLineItem((prev) => ({ ...prev, productId: value }))}
+              error={errors.productId}
+            />
+
+            <View style={styles.row}>
+              <Input
+                label="Qty"
+                placeholder="1"
+                value={lineItem.quantity}
+                onChangeText={(value) => setLineItem((prev) => ({ ...prev, quantity: value }))}
+                keyboardType="numeric"
+                error={errors.quantity}
+                style={styles.rowItem}
+              />
+
+              <Input
+                label="Cost Price"
+                placeholder="0.00"
+                value={lineItem.costPrice}
+                onChangeText={(value) => setLineItem((prev) => ({ ...prev, costPrice: value }))}
+                keyboardType="decimal-pad"
+                error={errors.costPrice}
+                style={styles.rowItem}
+              />
+            </View>
+
+            {!!errors.items && <Text style={styles.inlineError}>{errors.items}</Text>}
+
+            <Button variant="outline" onPress={addItem} fullWidth>
+              Add Item
+            </Button>
+
+            {items.length > 0 && (
+              <View style={styles.itemsSummary}>
+                <Text style={styles.itemsSummaryText}>Items added: {items.length}</Text>
+              </View>
+            )}
           </View>
         </View>
 
@@ -151,15 +259,33 @@ const styles = StyleSheet.create({
   form: {
     flex: 1,
   },
-  infoBox: {
-    backgroundColor: colors.info.light,
-    borderRadius: 8,
-    padding: spacing.md,
+  itemsSection: {
+    marginTop: spacing.lg,
+  },
+  sectionTitle: {
+    fontSize: typography.fontSize.lg,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.text.primary,
+    marginBottom: spacing.md,
+  },
+  row: {
+    flexDirection: 'row',
+    gap: spacing.md,
+  },
+  rowItem: {
+    flex: 1,
+  },
+  inlineError: {
+    marginTop: spacing.xs,
+    marginBottom: spacing.md,
+    color: colors.error?.dark || colors.text.primary,
+  },
+  itemsSummary: {
     marginTop: spacing.md,
   },
-  infoText: {
+  itemsSummaryText: {
     fontSize: typography.fontSize.sm,
-    color: colors.info.dark,
+    color: colors.text.secondary,
   },
   actions: {
     flexDirection: 'row',

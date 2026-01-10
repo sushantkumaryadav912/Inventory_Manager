@@ -2,6 +2,12 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { PrismaService } from '../prisma/prisma.service';
 import type { CreateInventoryItemDto, UpdateInventoryItemDto } from './inventory.schemas';
 
+type InventoryReadClient = {
+  inventory: {
+    findFirst: (args: any) => Promise<any>;
+  };
+};
+
 @Injectable()
 export class InventoryService {
   constructor(private readonly prisma: PrismaService) {}
@@ -39,6 +45,30 @@ export class InventoryService {
       sellingPrice: this.toNumber(product?.selling_price),
       reorderLevel: row.reorder_level ?? 0,
     };
+  }
+
+  private async getItemByIdWithClient(
+    client: InventoryReadClient,
+    shopId: string,
+    productId: string,
+  ) {
+    const row = await client.inventory.findFirst({
+      where: {
+        shop_id: shopId,
+        product_id: productId,
+        products: { is: { is_active: true } },
+      },
+      include: {
+        products: {
+          include: {
+            categories: true,
+          },
+        },
+      },
+    });
+
+    if (!row) throw new NotFoundException('Item not found');
+    return this.mapInventoryRow(row);
   }
 
   /**
@@ -160,23 +190,7 @@ export class InventoryService {
   }
 
   async getItemById(shopId: string, productId: string) {
-    const row = await this.prisma.inventory.findFirst({
-      where: {
-        shop_id: shopId,
-        product_id: productId,
-        products: { is: { is_active: true } },
-      },
-      include: {
-        products: {
-          include: {
-            categories: true,
-          },
-        },
-      },
-    });
-
-    if (!row) throw new NotFoundException('Item not found');
-    return this.mapInventoryRow(row);
+    return this.getItemByIdWithClient(this.prisma as unknown as InventoryReadClient, shopId, productId);
   }
 
   async createItem(shopId: string, userId: string, dto: CreateInventoryItemDto) {
@@ -235,7 +249,9 @@ export class InventoryService {
         },
       });
 
-      return this.getItemById(shopId, product.id);
+      // IMPORTANT: do not call the non-transactional Prisma client inside the transaction.
+      // Read the created item using the same transaction client to avoid visibility issues.
+      return this.getItemByIdWithClient(tx as unknown as InventoryReadClient, shopId, product.id);
     });
   }
 

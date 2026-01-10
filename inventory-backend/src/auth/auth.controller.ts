@@ -4,6 +4,7 @@ import {
   Controller,
   Get,
   Post,
+  HttpCode,
   UseGuards,
   Logger,
   Req,
@@ -341,11 +342,9 @@ export class AuthController {
 
   @Post('logout')
   @UseGuards(JwtAuthGuard)
+  @HttpCode(204)
   async logout() {
-    return {
-      success: true,
-      message: 'Logged out successfully',
-    };
+    return;
   }
 
   @Post('request-otp')

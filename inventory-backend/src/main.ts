@@ -41,6 +41,25 @@ async function bootstrap() {
     }),
   );
 
+  // Fastify rejects empty bodies for application/json by default.
+  // Our mobile client can send POSTs with JSON headers but no body (e.g., /auth/logout).
+  // This parser treats an empty JSON body as an empty object.
+  const fastify = app.getHttpAdapter().getInstance();
+  fastify.addContentTypeParser(
+    ['application/json', 'application/*+json'],
+    { parseAs: 'string' },
+    (req: any, body: string, done: (err: Error | null, value?: any) => void) => {
+      if (body === '' || body === undefined || body === null) {
+        return done(null, {});
+      }
+      try {
+        return done(null, JSON.parse(body));
+      } catch (err) {
+        return done(err as Error);
+      }
+    },
+  );
+
   // Configure Helmet with production-ready security headers
   await app.register(helmet, {
     contentSecurityPolicy: {

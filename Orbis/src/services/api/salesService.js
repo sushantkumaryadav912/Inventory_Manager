@@ -28,6 +28,11 @@ class SalesService {
     }
   }
 
+  // Backwards-compatible aliases used by some screens
+  async getSaleById(orderId) {
+    return this.getSalesOrderById(orderId);
+  }
+
   /**
    * Create new sales order
    */
@@ -39,6 +44,10 @@ class SalesService {
       console.error('Failed to create sales order:', error);
       throw error;
     }
+  }
+
+  async createSale(orderData) {
+    return this.createSalesOrder(orderData);
   }
 
   /**
@@ -91,6 +100,10 @@ class SalesService {
       console.error('Failed to create customer:', error);
       throw error;
     }
+  }
+
+  async deleteSale(orderId) {
+    return this.deleteSalesOrder(orderId);
   }
 }
 
