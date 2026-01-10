@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as https from 'https';
+import { z } from 'zod';
 
 @Injectable()
 export class EmailService {
@@ -32,9 +33,16 @@ export class EmailService {
     const fromName = this.configService.get<string>('EMAIL_FROM_NAME');
     const supportEmail = this.configService.get<string>('SUPPORT_EMAIL');
 
-    if (!fromEmail) throw new Error('EMAIL_FROM is required when sending via Brevo.');
-    if (!fromName) throw new Error('EMAIL_FROM_NAME is required when sending via Brevo.');
-    if (!supportEmail) throw new Error('SUPPORT_EMAIL is required when sending via Brevo.');
+    if (!fromEmail) throw new Error('missing EMAIL_FROM');
+    if (!fromName) throw new Error('missing EMAIL_FROM_NAME');
+    if (!supportEmail) throw new Error('missing SUPPORT_EMAIL');
+
+    if (!z.string().email().safeParse(fromEmail).success) {
+      throw new Error('invalid EMAIL_FROM');
+    }
+    if (!z.string().email().safeParse(supportEmail).success) {
+      throw new Error('invalid SUPPORT_EMAIL');
+    }
 
     return { fromEmail, fromName, supportEmail };
   }
@@ -43,23 +51,28 @@ export class EmailService {
    * Send OTP email via Brevo
    */
   async sendOtpEmail(email: string, otpCode: string, userName?: string): Promise<boolean> {
-    try {
-      const brevoApiKey = this.configService.get<string>('BREVO_API_KEY');
-      
-      // Allow test mode - just log the OTP
-      if (!brevoApiKey) {
-        this.logger.log(`[TEST MODE] OTP Email to ${email}: ${otpCode}`);
-        return true;
-      }
+    const brevoApiKey = this.configService.get<string>('BREVO_API_KEY');
+    if (!brevoApiKey) {
+      this.logger.warn('Email service disabled: missing BREVO_API_KEY');
+      return false;
+    }
 
-      const { fromEmail, fromName, supportEmail } = this.getRequiredEmailConfig();
+    let fromEmail: string;
+    let fromName: string;
+    let supportEmail: string;
+    let otpTemplateId: number;
+
+    try {
+      ({ fromEmail, fromName, supportEmail } = this.getRequiredEmailConfig());
 
       const otpTemplateIdRaw = this.configService.get<string>('BREVO_OTP_TEMPLATE_ID');
-      const otpTemplateId = this.parseBrevoTemplateId(otpTemplateIdRaw, 'BREVO_OTP_TEMPLATE_ID');
-
-      if (!otpTemplateId) {
-        throw new Error('BREVO_OTP_TEMPLATE_ID is required when BREVO_API_KEY is set.');
-      }
+      const parsed = this.parseBrevoTemplateId(otpTemplateIdRaw, 'BREVO_OTP_TEMPLATE_ID');
+      if (!parsed) throw new Error('missing BREVO_OTP_TEMPLATE_ID');
+      otpTemplateId = parsed;
+    } catch (err: any) {
+      this.logger.warn(`Email service disabled: ${err?.message || 'invalid email configuration'}`);
+      return false;
+    }
 
       const basePayload = {
         sender: {
@@ -81,12 +94,13 @@ export class EmailService {
         },
       };
 
+    try {
       await this.makeBrevoApiRequest(brevoApiKey, payload);
       this.logger.log(`OTP email sent successfully to ${email}`);
       return true;
-    } catch (error) {
-      this.logger.error(`Failed to send OTP email to ${email}:`, error.message);
-      throw error;
+    } catch (error: any) {
+      this.logger.error(`Failed to send OTP email to ${email}: ${error?.message || error}`);
+      return false;
     }
   }
 
@@ -94,26 +108,31 @@ export class EmailService {
    * Send password reset link email via Brevo
    */
   async sendPasswordResetLinkEmail(email: string, resetLink: string, userName?: string): Promise<boolean> {
-    try {
-      const brevoApiKey = this.configService.get<string>('BREVO_API_KEY');
-      
-      // Allow test mode - just log the OTP
-      if (!brevoApiKey) {
-        this.logger.log(`[TEST MODE] Password Reset Link Email to ${email}: ${resetLink}`);
-        return true;
-      }
+    const brevoApiKey = this.configService.get<string>('BREVO_API_KEY');
+    if (!brevoApiKey) {
+      this.logger.warn('Email service disabled: missing BREVO_API_KEY');
+      return false;
+    }
 
-      const { fromEmail, fromName, supportEmail } = this.getRequiredEmailConfig();
+    let fromEmail: string;
+    let fromName: string;
+    let supportEmail: string;
+    let resetTemplateId: number;
+
+    try {
+      ({ fromEmail, fromName, supportEmail } = this.getRequiredEmailConfig());
 
       const resetTemplateIdRaw = this.configService.get<string>('BREVO_PASSWORD_RESET_TEMPLATE_ID');
-      const resetTemplateId = this.parseBrevoTemplateId(
+      const parsed = this.parseBrevoTemplateId(
         resetTemplateIdRaw,
         'BREVO_PASSWORD_RESET_TEMPLATE_ID',
       );
-
-      if (!resetTemplateId) {
-        throw new Error('BREVO_PASSWORD_RESET_TEMPLATE_ID is required when BREVO_API_KEY is set.');
-      }
+      if (!parsed) throw new Error('missing BREVO_PASSWORD_RESET_TEMPLATE_ID');
+      resetTemplateId = parsed;
+    } catch (err: any) {
+      this.logger.warn(`Email service disabled: ${err?.message || 'invalid email configuration'}`);
+      return false;
+    }
 
       const basePayload = {
         sender: {
@@ -135,12 +154,15 @@ export class EmailService {
         },
       };
 
+    try {
       await this.makeBrevoApiRequest(brevoApiKey, payload);
       this.logger.log(`Password reset link email sent successfully to ${email}`);
       return true;
-    } catch (error) {
-      this.logger.error(`Failed to send password reset link email to ${email}:`, error.message);
-      throw error;
+    } catch (error: any) {
+      this.logger.error(
+        `Failed to send password reset link email to ${email}: ${error?.message || error}`,
+      );
+      return false;
     }
   }
 

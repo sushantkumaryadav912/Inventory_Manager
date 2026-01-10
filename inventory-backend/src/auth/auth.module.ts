@@ -20,7 +20,14 @@ import { OtpThrottlerGuard } from './otp-throttler.guard';
     JwtModule.registerAsync({
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
-        secret: configService.get<string>('JWT_SECRET') || 'your-secret-key-change-in-production',
+        secret: (() => {
+          const secret = configService.get<string>('JWT_SECRET');
+          if (!secret) {
+            // CORE env validation should prevent this, but keep a defensive check.
+            throw new Error('JWT_SECRET is required');
+          }
+          return secret;
+        })(),
         signOptions: { expiresIn: '24h' },
       }),
     }),
