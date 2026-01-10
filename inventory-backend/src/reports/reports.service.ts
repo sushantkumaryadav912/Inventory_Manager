@@ -74,7 +74,7 @@ export class ReportsService {
   private async getWeeklySales(shopId: string) {
     const now = new Date();
     const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    const weeklySales = [];
+    const weeklySales: Array<{ day: string; value: number }> = [];
 
     for (let i = 6; i >= 0; i--) {
       const date = new Date(now);
@@ -211,7 +211,7 @@ export class ReportsService {
   private async getMonthlySales(shopId: string) {
     const now = new Date();
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const monthlySales = [];
+    const monthlySales: Array<{ month: string; value: number }> = [];
 
     for (let i = 5; i >= 0; i--) {
       const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
@@ -265,8 +265,8 @@ export class ReportsService {
 
         return {
           id: item.product_id,
-          name: product?.name || 'Unknown Product',
-          quantity: item._sum.quantity || 0,
+          name: product?.name ?? 'Unknown Product',
+          quantity: item._sum.quantity ?? 0,
           revenue: this.toNumber(item._sum.selling_price),
         };
       }),
@@ -309,7 +309,7 @@ export class ReportsService {
   private async getMonthlyPurchases(shopId: string) {
     const now = new Date();
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const monthlyPurchases = [];
+    const monthlyPurchases: Array<{ month: string; value: number }> = [];
 
     for (let i = 5; i >= 0; i--) {
       const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
@@ -362,7 +362,7 @@ export class ReportsService {
 
         return {
           id: item.supplier_id,
-          name: supplier?.name || 'Unknown Supplier',
+          name: supplier?.name ?? 'Unknown Supplier',
           orders: item._count,
           totalSpent: this.toNumber(item._sum.total_cost),
         };
