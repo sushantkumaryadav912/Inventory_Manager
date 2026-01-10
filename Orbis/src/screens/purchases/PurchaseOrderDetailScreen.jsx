@@ -25,7 +25,35 @@ const PurchaseOrderDetailScreen = ({ route, navigation }) => {
     try {
       setIsLoading(true);
       const response = await purchaseService.getPurchaseOrderById(orderId);
-      setOrder(response.order || response);
+      const rawOrder = response.order || response;
+      
+      // Transform backend data to frontend format
+      const transformedOrder = {
+        id: rawOrder.id,
+        orderNumber: rawOrder.id?.slice(0, 8).toUpperCase() || 'N/A',
+        orderDate: rawOrder.created_at || new Date(),
+        status: 'received', // Default status since backend doesn't have this field
+        supplier: rawOrder.suppliers ? {
+          id: rawOrder.suppliers.id,
+          name: rawOrder.suppliers.name,
+          email: rawOrder.suppliers.email,
+          phone: rawOrder.suppliers.phone,
+          address: rawOrder.suppliers.address,
+        } : null,
+        items: rawOrder.purchase_items?.map(item => ({
+          id: item.id,
+          name: item.products?.name || 'Unknown Product',
+          sku: item.products?.sku || '',
+          quantity: item.quantity,
+          price: parseFloat(item.cost_price) || 0,
+        })) || [],
+        subtotal: parseFloat(rawOrder.total_cost) || 0,
+        tax: 0, // Backend doesn't store tax separately
+        totalAmount: parseFloat(rawOrder.total_cost) || 0,
+        createdBy: rawOrder.users?.name || 'Unknown',
+      };
+      
+      setOrder(transformedOrder);
     } catch (error) {
       console.error('Failed to load order:', error);
       showErrorAlert(error, 'Failed to load order details');

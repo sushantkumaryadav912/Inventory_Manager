@@ -25,7 +25,38 @@ const SaleDetailScreen = ({ route, navigation }) => {
     try {
       setIsLoading(true);
       const response = await salesService.getSaleById(orderId);
-      setOrder(response.order || response);
+      const rawOrder = response.order || response;
+      
+      // Transform backend data to frontend format
+      const transformedOrder = {
+        id: rawOrder.id,
+        orderNumber: rawOrder.id?.slice(0, 8).toUpperCase() || 'N/A',
+        orderDate: rawOrder.created_at || new Date(),
+        status: 'completed', // Default status
+        paymentStatus: rawOrder.payment_method ? 'paid' : 'pending',
+        paymentMethod: rawOrder.payment_method || 'CASH',
+        customer: rawOrder.customers ? {
+          id: rawOrder.customers.id,
+          name: rawOrder.customers.name,
+          email: rawOrder.customers.email,
+          phone: rawOrder.customers.phone,
+          address: rawOrder.customers.address,
+        } : null,
+        items: rawOrder.sale_items?.map(item => ({
+          id: item.id,
+          name: item.products?.name || 'Unknown Product',
+          sku: item.products?.sku || '',
+          quantity: item.quantity,
+          price: parseFloat(item.selling_price) || 0,
+        })) || [],
+        subtotal: parseFloat(rawOrder.total_amount) || 0,
+        tax: 0, // Backend doesn't store tax separately
+        discount: 0, // Backend doesn't store discount
+        totalAmount: parseFloat(rawOrder.total_amount) || 0,
+        createdBy: rawOrder.users?.name || 'Unknown',
+      };
+      
+      setOrder(transformedOrder);
     } catch (error) {
       console.error('Failed to load order:', error);
       showErrorAlert(error, 'Failed to load order details');
