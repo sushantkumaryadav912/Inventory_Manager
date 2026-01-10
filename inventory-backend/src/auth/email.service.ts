@@ -11,6 +11,22 @@ export class EmailService {
 
   constructor(private readonly configService: ConfigService) {}
 
+  private parseEmailAddress(value: string, envName: string): string {
+    const trimmed = value.trim();
+    if (!trimmed) throw new Error(`missing ${envName}`);
+
+    // Allow either:
+    // - plain email: support@domain.com
+    // - display format: "Inventory Manager <support@domain.com>"
+    const angleMatch = trimmed.match(/<\s*([^>]+)\s*>/);
+    const candidate = (angleMatch?.[1] ?? trimmed).trim();
+
+    if (!z.string().email().safeParse(candidate).success) {
+      throw new Error(`invalid ${envName}`);
+    }
+    return candidate;
+  }
+
   private parseBrevoTemplateId(raw: string | undefined, envName: string): number | undefined {
     if (!raw) return undefined;
     const trimmed = raw.trim();
@@ -29,20 +45,16 @@ export class EmailService {
   }
 
   private getRequiredEmailConfig(): { fromEmail: string; fromName: string; supportEmail: string } {
-    const fromEmail = this.configService.get<string>('EMAIL_FROM');
+    const fromEmailRaw = this.configService.get<string>('EMAIL_FROM');
     const fromName = this.configService.get<string>('EMAIL_FROM_NAME');
-    const supportEmail = this.configService.get<string>('SUPPORT_EMAIL');
+    const supportEmailRaw = this.configService.get<string>('SUPPORT_EMAIL');
 
-    if (!fromEmail) throw new Error('missing EMAIL_FROM');
+    if (!fromEmailRaw) throw new Error('missing EMAIL_FROM');
     if (!fromName) throw new Error('missing EMAIL_FROM_NAME');
-    if (!supportEmail) throw new Error('missing SUPPORT_EMAIL');
+    if (!supportEmailRaw) throw new Error('missing SUPPORT_EMAIL');
 
-    if (!z.string().email().safeParse(fromEmail).success) {
-      throw new Error('invalid EMAIL_FROM');
-    }
-    if (!z.string().email().safeParse(supportEmail).success) {
-      throw new Error('invalid SUPPORT_EMAIL');
-    }
+    const fromEmail = this.parseEmailAddress(fromEmailRaw, 'EMAIL_FROM');
+    const supportEmail = this.parseEmailAddress(supportEmailRaw, 'SUPPORT_EMAIL');
 
     return { fromEmail, fromName, supportEmail };
   }

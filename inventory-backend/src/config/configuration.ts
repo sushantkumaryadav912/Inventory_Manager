@@ -3,7 +3,12 @@ import { coreEnvSchema, optionalEnvSchema } from './env.schema';
 
 function isValidEmail(value: string | undefined): boolean {
   if (!value) return false;
-  return z.string().email().safeParse(value).success;
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+
+  const angleMatch = trimmed.match(/<\s*([^>]+)\s*>/);
+  const candidate = (angleMatch?.[1] ?? trimmed).trim();
+  return z.string().email().safeParse(candidate).success;
 }
 
 function isPositiveIntString(value: string | undefined): boolean {

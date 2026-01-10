@@ -84,7 +84,12 @@ export class OtpService {
       });
 
       // Send OTP via email
-      await this.emailService.sendOtpEmail(normalizedEmail, otpCode, userName);
+      const sent = await this.emailService.sendOtpEmail(normalizedEmail, otpCode, userName);
+      if (!sent) {
+        this.logger.warn(
+          `OTP generated for ${normalizedEmail} but email was not sent (email service disabled or provider error).`,
+        );
+      }
 
       this.logger.log(`Email verification OTP requested for ${normalizedEmail}`);
 
