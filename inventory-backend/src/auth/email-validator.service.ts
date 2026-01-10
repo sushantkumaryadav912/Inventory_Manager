@@ -1,6 +1,7 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as https from 'https';
+import { z } from 'zod';
 
 interface AbstractEmailReputationResponse {
   email_address: string;
@@ -124,6 +125,20 @@ export class EmailValidatorService {
   private readonly EXTERNAL_HTTP_TIMEOUT_MS = 10000;
 
   constructor(private readonly configService: ConfigService) {}
+
+  private parseEmailAddress(value: string, envName: string): string {
+    const trimmed = value.trim();
+    if (!trimmed) throw new Error(`missing ${envName}`);
+
+    const angleMatch = trimmed.match(/<\s*([^>]+)\s*>/);
+    const emailInStringMatch = trimmed.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+    const candidate = (angleMatch?.[1] ?? emailInStringMatch?.[0] ?? trimmed).trim();
+
+    if (!z.string().email().safeParse(candidate).success) {
+      throw new Error(`invalid ${envName}`);
+    }
+    return candidate;
+  }
 
   /**
    * Validate email using Abstract API
@@ -356,7 +371,31 @@ export class EmailValidatorService {
     try {
       const apiKey = this.configService.get<string>('BREVO_API_KEY');
       if (!apiKey) {
-        throw new BadRequestException('BREVO_API_KEY is not configured');
+        this.logger.warn('Email service disabled: missing BREVO_API_KEY');
+        return false;
+      }
+
+      const fromName = this.configService.get<string>('EMAIL_FROM_NAME');
+      const fromEmailRaw = this.configService.get<string>('EMAIL_FROM');
+      const supportEmailRaw = this.configService.get<string>('SUPPORT_EMAIL');
+
+      if (!fromName || !fromEmailRaw || !supportEmailRaw) {
+        this.logger.warn(
+          'Email service disabled: missing EMAIL_FROM_NAME / EMAIL_FROM / SUPPORT_EMAIL',
+        );
+        return false;
+      }
+
+      let fromEmail: string;
+      let supportEmail: string;
+      try {
+        fromEmail = this.parseEmailAddress(fromEmailRaw, 'EMAIL_FROM');
+        supportEmail = this.parseEmailAddress(supportEmailRaw, 'SUPPORT_EMAIL');
+      } catch (err: any) {
+        this.logger.warn(
+          `Email service disabled: ${err?.message || 'invalid sender configuration'} (expected: support@domain.com or Name <support@domain.com>)`,
+        );
+        return false;
       }
 
       const emailContent = this.generateVerificationEmailTemplate(
@@ -366,8 +405,8 @@ export class EmailValidatorService {
 
       const payload = {
         sender: {
-          name: this.configService.get<string>('EMAIL_FROM_NAME') || 'Inventory Manager',
-          email: this.configService.get<string>('EMAIL_FROM') || 'noreply@inventorymanager.com',
+          name: fromName,
+          email: fromEmail,
         },
         to: [
           {
@@ -379,7 +418,7 @@ export class EmailValidatorService {
         htmlContent: emailContent.html,
         textContent: emailContent.text,
         replyTo: {
-          email: this.configService.get<string>('SUPPORT_EMAIL') || 'support@inventorymanager.com',
+          email: supportEmail,
         },
       };
 
@@ -389,8 +428,15 @@ export class EmailValidatorService {
       );
       return true;
     } catch (error) {
-      this.logger.error(`Failed to send verification email to ${email}:`, error.message);
-      throw error;
+      const message = error instanceof Error ? error.message : String(error);
+      // Brevo commonly returns: "valid sender email required" when the sender is not verified/allowed.
+      this.logger.error(`Failed to send verification email to ${email}: ${message}`);
+      if (message.toLowerCase().includes('valid sender email required')) {
+        this.logger.error(
+          'Brevo rejected the sender. Ensure EMAIL_FROM is a verified sender/domain in Brevo (Transactional → Senders).',
+        );
+      }
+      return false;
     }
   }
 

@@ -19,7 +19,8 @@ export class EmailService {
     // - plain email: support@domain.com
     // - display format: "Inventory Manager <support@domain.com>"
     const angleMatch = trimmed.match(/<\s*([^>]+)\s*>/);
-    const candidate = (angleMatch?.[1] ?? trimmed).trim();
+    const emailInStringMatch = trimmed.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+    const candidate = (angleMatch?.[1] ?? emailInStringMatch?.[0] ?? trimmed).trim();
 
     if (!z.string().email().safeParse(candidate).success) {
       throw new Error(`invalid ${envName}`);

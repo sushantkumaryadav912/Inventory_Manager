@@ -84,12 +84,15 @@ export class AuthController {
       // Step 5: Send verification email via Brevo
       let verificationEmailSent = true;
       try {
-        await this.emailValidatorService.sendVerificationEmail(
+        verificationEmailSent = await this.emailValidatorService.sendVerificationEmail(
           email,
           name || email.split('@')[0],
           verificationToken,
           verificationUrl,
         );
+        if (!verificationEmailSent) {
+          throw new Error('Verification email was not sent');
+        }
       } catch (err) {
         verificationEmailSent = false;
         const message = err instanceof Error ? err.message : String(err);
