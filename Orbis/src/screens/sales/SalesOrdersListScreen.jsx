@@ -29,7 +29,26 @@ const SalesOrdersListScreen = ({ navigation }) => {
       setIsLoading(true);
       const params = debouncedSearch ? { search: debouncedSearch } : {};
       const response = await salesService.getSalesOrders(params);
-      setOrders(response.orders || response || []);
+      const rawOrders = response.orders || response || [];
+      
+      // Transform backend data to frontend format
+      const transformedOrders = rawOrders.map(order => ({
+        id: order.id,
+        orderNumber: order.id?.slice(0, 8).toUpperCase() || 'N/A',
+        customer: order.customers ? {
+          id: order.customers.id,
+          name: order.customers.name,
+          email: order.customers.email,
+          phone: order.customers.phone,
+        } : null,
+        orderDate: order.created_at || new Date(),
+        status: 'completed', // Default status
+        paymentStatus: order.payment_method ? 'paid' : 'pending',
+        totalAmount: parseFloat(order.total_amount) || 0,
+        itemsCount: order.sale_items?.length || 0,
+      }));
+      
+      setOrders(transformedOrders);
     } catch (error) {
       console.error('Failed to load sales orders:', error);
       showErrorAlert(error, 'Failed to load sales orders');

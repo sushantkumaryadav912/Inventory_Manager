@@ -29,7 +29,26 @@ const PurchaseOrdersListScreen = ({ navigation }) => {
       setIsLoading(true);
       const params = debouncedSearch ? { search: debouncedSearch } : {};
       const response = await purchaseService.getPurchaseOrders(params);
-      setOrders(response.orders || response || []);
+      const rawOrders = response.orders || response || [];
+      
+      // Transform backend data to frontend format
+      const transformedOrders = rawOrders.map(order => ({
+        id: order.id,
+        orderNumber: order.id?.slice(0, 8).toUpperCase() || 'N/A',
+        supplier: order.suppliers ? {
+          id: order.suppliers.id,
+          name: order.suppliers.name,
+          email: order.suppliers.email,
+          phone: order.suppliers.phone,
+        } : null,
+        orderDate: order.created_at || new Date(),
+        expectedDate: order.expected_date || null,
+        status: 'received', // Default status since backend doesn't have this field
+        totalAmount: parseFloat(order.total_cost) || 0,
+        itemsCount: order.purchase_items?.length || 0,
+      }));
+      
+      setOrders(transformedOrders);
     } catch (error) {
       console.error('Failed to load purchase orders:', error);
       showErrorAlert(error, 'Failed to load purchase orders');
