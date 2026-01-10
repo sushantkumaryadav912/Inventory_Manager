@@ -1,6 +1,6 @@
 // src/screens/purchases/CreatePurchaseOrderScreen.jsx
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert, Platform } from 'react-native';
 import { ScreenWrapper } from '../../components/layout';
 import { Input, Dropdown, Button, DatePicker } from '../../components/ui';
 import { inventoryService, purchaseService } from '../../services/api';
@@ -24,6 +24,8 @@ const CreatePurchaseOrderScreen = ({ navigation }) => {
   const [items, setItems] = useState([]);
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showAddSupplier, setShowAddSupplier] = useState(false);
+  const [newSupplierName, setNewSupplierName] = useState('');
 
   useEffect(() => {
     const loadData = async () => {
@@ -138,41 +140,63 @@ const CreatePurchaseOrderScreen = ({ navigation }) => {
     }
   };
 
-  return (
-    <ScreenWrapper>
-      <ScrollView 
-        style={styles.container}
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-      >
-        <Text style={styles.title}>New Purchase Order</Text>
+  const handleAddSupplier = async () => {
+    if (!newSupplierName.trim()) {
+      Alert.alert('Error', 'Please enter supplier name');
+      return;
+    }
 
-        <View style={styles.form}>
-          <View style={styles.supplierSection}>
-            <Dropdown
-              label="Supplier *"
-              placeholder="Choose a supplier for this order"
-              value={formData.supplierId}
-              items={supplierDropdownItems}
-              onSelect={(value) => handleInputChange('supplierId', value)}
-              error={errors.supplierId}
-              helperText="Select the supplier providing these items"
-              style={styles.supplierDropdown}
-            />
+    try {
+      const newSupplier = await purchaseService.createSupplier({ name: newSupplierName.trim() });
+      setSuppliers(prev => [...prev, newSupplier]);
+      setFormData(prev => ({ ...prev, supplierId: newSupplier.id }));
+      setNeDropdown
+            label="Supplier *"
+            placeholder="Choose a supplier for this order"
+            value={formData.supplierId}
+            items={supplierDropdownItems}
+            onSelect={(value) => handleInputChange('supplierId', value)}
+            error={errors.supplierId}
+            helperText="Select the supplier providing these items"
+          />
+
+          {!showAddSupplier ? (
             <Button
               variant="outline"
-              onPress={() => {
-                Alert.prompt(
-                  'Add New Supplier',
-                  'Enter supplier name',
-                  [
-                    { text: 'Cancel', style: 'cancel' },
-                    {
-                      text: 'Add',
-                      onPress: async (name) => {
-                        if (name && name.trim()) {
-                          try {
-                            const newSupplier = await purchaseService.createSupplier({ name: name.trim() });
+              onPress={() => setShowAddSupplier(true)}
+              style={styles.addSupplierToggle}
+            >
+              + Add New Supplier
+            </Button>
+          ) : (
+            <View style={styles.addSupplierForm}>
+              <Input
+                label="New Supplier Name *"
+                placeholder="Enter supplier name"
+                value={newSupplierName}
+                onChangeText={setNewSupplierName}
+                autoFocus
+              />
+              <View style={styles.addSupplierActions}>
+                <Button
+                  variant="outline"
+                  onPress={() => {
+                    setShowAddSupplier(false);
+                    setNewSupplierName('');
+                  }}
+                  style={styles.addSupplierAction}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onPress={handleAddSupplier}
+                  style={styles.addSupplierAction}
+                >
+                  Add Supplier
+                </Button>
+              </View>
+            </View>
+          )}           const newSupplier = await purchaseService.createSupplier({ name: name.trim() });
                             setSuppliers(prev => [...prev, newSupplier]);
                             setFormData(prev => ({ ...prev, supplierId: newSupplier.id }));
                             showSuccessAlert('Supplier added successfully');
@@ -319,17 +343,22 @@ const styles = StyleSheet.create({
   },
   quantityInput: {
     flex: 2,
+  addSupplierToggle: {
+    marginTop: spacing.sm,
   },
-  costInput: {
-    flex: 1,
+  addSupplierForm: {
+    marginTop: spacing.md,
+    padding: spacing.md,
+    backgroundColor: colors.gray[50],
+    borderRadius: 8,
   },
-  supplierSection: {
+  addSupplierActions: {
     flexDirection: 'row',
     gap: spacing.sm,
-    alignItems: 'flex-start',
+    marginTop: spacing.md,
   },
-  supplierDropdown: {
-    flex: 1,
+  addSupplierAction: {
+    flex: 1
   },
   addSupplierButton: {
     marginTop: 24,
