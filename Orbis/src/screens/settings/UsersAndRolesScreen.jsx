@@ -4,7 +4,7 @@ import { View, Text, StyleSheet, FlatList, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { ScreenWrapper, EmptyState } from '../../components/layout';
 import { Card, Button, Badge } from '../../components/ui';
-import { usersService } from '../../services/api';
+import { settingsService } from '../../services/api';
 import { showErrorAlert } from '../../utils/errorHandler';
 import { colors, spacing, typography } from '../../theme';
 
@@ -19,7 +19,7 @@ const UsersAndRolesScreen = ({ navigation }) => {
   const loadUsers = async () => {
     try {
       setIsLoading(true);
-      const response = await usersService.getShopUsers();
+      const response = await settingsService.getUsers();
       setUsers(response.users || response || []);
     } catch (error) {
       console.error('Failed to load users:', error);

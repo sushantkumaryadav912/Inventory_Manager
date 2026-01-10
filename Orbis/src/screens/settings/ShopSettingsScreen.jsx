@@ -1,20 +1,45 @@
 // src/screens/settings/ShopSettingsScreen.jsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
-import { ScreenWrapper } from '../../components/layout';
+import { ScreenWrapper, LoadingOverlay } from '../../components/layout';
 import { Input, Dropdown, Button } from '../../components/ui';
-import { showSuccessAlert } from '../../utils/errorHandler';
+import { settingsService } from '../../services/api';
+import { showSuccessAlert, showErrorAlert } from '../../utils/errorHandler';
 import { colors, spacing, typography } from '../../theme';
 
 const ShopSettingsScreen = ({ navigation }) => {
   const [formData, setFormData] = useState({
-    shopName: 'Main Shop',
+    shopName: '',
     currency: 'INR',
-    taxRate: '18',
-    lowStockThreshold: '10',
+    taxRate: '',
+    lowStockThreshold: '',
     enableNotifications: true,
   });
+  const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    loadShopSettings();
+  }, []);
+
+  const loadShopSettings = async () => {
+    try {
+      setIsLoading(true);
+      const settings = await settingsService.getShopSettings();
+      setFormData({
+        shopName: settings.shopName || settings.name || '',
+        currency: settings.currency || 'INR',
+        taxRate: String(settings.taxRate || settings.defaultTaxRate || '18'),
+        lowStockThreshold: String(settings.lowStockThreshold || settings.reorderLevel || '10'),
+        enableNotifications: settings.enableNotifications !== false,
+      });
+    } catch (error) {
+      console.error('Failed to load shop settings:', error);
+      showErrorAlert(error, 'Failed to load shop settings');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const currencyOptions = [
     { value: 'INR', label: '₹ Indian Rupee (INR)' },
@@ -30,28 +55,39 @@ const ShopSettingsScreen = ({ navigation }) => {
   const handleSave = async () => {
     try {
       setIsSubmitting(true);
-      // TODO: Call API to update shop settings
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await settingsService.updateShopSettings({
+        shopName: formData.shopName,
+        currency: formData.currency,
+        taxRate: parseFloat(formData.taxRate),
+        lowStockThreshold: parseInt(formData.lowStockThreshold),
+        enableNotifications: formData.enableNotifications,
+      });
       showSuccessAlert('Shop settings updated successfully');
       navigation.goBack();
     } catch (error) {
       console.error('Failed to update settings:', error);
+      showErrorAlert(error, 'Failed to update shop settings');
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  if (isLoading) {
+    return <LoadingOverlay visible={true} />;
+  }
+
   return (
     <ScreenWrapper>
-      <ScrollView style={styles.container}>
+      <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
         <Text style={styles.title}>Shop Settings</Text>
 
         <View style={styles.form}>
           <Input
             label="Shop Name *"
+            placeholder="Enter your shop name"
             value={formData.shopName}
             onChangeText={(value) => handleInputChange('shopName', value)}
-            placeholder="Enter shop name"
+            helperText="Display name for your shop"
           />
 
           <Dropdown
@@ -59,7 +95,8 @@ const ShopSettingsScreen = ({ navigation }) => {
             value={formData.currency}
             items={currencyOptions}
             onSelect={(value) => handleInputChange('currency', value)}
-            placeholder="Select currency"
+            placeholder="Select your default currency"
+            helperText="Primary currency for all transactions"
           />
 
           <Input
@@ -138,6 +175,9 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     paddingTop: spacing.xl,
     paddingBottom: spacing.xl,
+  },
+  scrollContent: {
+    paddingBottom: spacing.xl * 3,
   },
 });
 

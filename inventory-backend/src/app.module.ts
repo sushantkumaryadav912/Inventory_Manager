@@ -8,6 +8,7 @@ import { PurchasesModule } from './purchases/purchases.module';
 import { SalesModule } from './sales/sales.module';
 import { ContactsModule } from './contacts/contacts.module';
 import { ReportsModule } from './reports/reports.module';
+import { SettingsModule } from './settings/settings.module';
 import { AppController } from './app.controller';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerModule } from '@nestjs/throttler';
@@ -32,6 +33,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
     SalesModule,
     ContactsModule,
     ReportsModule,
+    SettingsModule,
   ],
   controllers: [AppController],
 })

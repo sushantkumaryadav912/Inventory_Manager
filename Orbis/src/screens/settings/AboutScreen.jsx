@@ -13,7 +13,7 @@ const AboutScreen = () => {
 
   return (
     <ScreenWrapper>
-      <ScrollView style={styles.container}>
+      <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
         {/* App Logo/Name */}
         <View style={styles.header}>
           <View style={styles.logoContainer}>
@@ -220,6 +220,9 @@ const styles = StyleSheet.create({
     color: colors.text.secondary,
     textAlign: 'center',
     marginBottom: spacing.xl,
+  },
+  scrollContent: {
+    paddingBottom: spacing.xl * 3,
   },
 });
 

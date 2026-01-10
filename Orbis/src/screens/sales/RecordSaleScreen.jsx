@@ -74,8 +74,10 @@ const RecordSaleScreen = ({ navigation }) => {
     }
 
     const customerId = (formData.customerId || '').trim();
-    if (customerId && !isUuid(customerId)) {
-      newErrors.customerId = 'Customer ID must be a valid UUID';
+    if (!customerId) {
+      newErrors.customerId = 'Customer name is required';
+    } else if (customerId.length < 2) {
+      newErrors.customerId = 'Customer name must be at least 2 characters';
     }
 
     if (!items.length) {
@@ -148,7 +150,11 @@ const RecordSaleScreen = ({ navigation }) => {
 
   return (
     <ScreenWrapper>
-      <ScrollView style={styles.container}>
+      <ScrollView 
+        style={styles.container}
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+      >
         <Text style={styles.title}>Record New Sale</Text>
 
         <View style={styles.form}>
@@ -168,10 +174,12 @@ const RecordSaleScreen = ({ navigation }) => {
           />
 
           <Input
-            label="Customer (Optional)"
-            placeholder="Select or add customer"
+            label="Customer Name *"
+            placeholder="Enter customer's full name"
             value={formData.customerId}
             onChangeText={(value) => handleInputChange('customerId', value)}
+            error={errors.customerId}
+            helperText="Full name of the customer making this purchase"
           />
 
           <Input
@@ -197,22 +205,24 @@ const RecordSaleScreen = ({ navigation }) => {
 
             <View style={styles.row}>
               <Input
-                label="Qty"
-                placeholder="1"
+                label="Quantity *"
+                placeholder="Enter qty"
                 value={lineItem.quantity}
                 onChangeText={(value) => setLineItem((prev) => ({ ...prev, quantity: value }))}
                 keyboardType="numeric"
                 error={errors.quantity}
+                helperText="Number of units"
                 style={styles.rowItem}
               />
 
               <Input
-                label="Selling Price"
-                placeholder="0.00"
+                label="Unit Price *"
+                placeholder="Enter price"
                 value={lineItem.sellingPrice}
                 onChangeText={(value) => setLineItem((prev) => ({ ...prev, sellingPrice: value }))}
                 keyboardType="decimal-pad"
                 error={errors.sellingPrice}
+                helperText="Price per unit"
                 style={styles.rowItem}
               />
             </View>
@@ -299,6 +309,9 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     paddingTop: spacing.xl,
     paddingBottom: spacing.xl,
+  },
+  scrollContent: {
+    paddingBottom: spacing.xl * 3,
   },
 });
 

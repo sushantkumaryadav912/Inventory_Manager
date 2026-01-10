@@ -59,7 +59,7 @@ class SettingsService {
    */
   async getUsers() {
     try {
-      const response = await apiClient.get('/users');
+      const response = await apiClient.get('/settings/users');
       return response.data;
     } catch (error) {
       console.error('Failed to fetch users:', error);
@@ -72,7 +72,7 @@ class SettingsService {
    */
   async inviteUser(userData) {
     try {
-      const response = await apiClient.post('/users/invite', userData);
+      const response = await apiClient.post('/settings/users/invite', userData);
       return response.data;
     } catch (error) {
       console.error('Failed to invite user:', error);
@@ -85,7 +85,7 @@ class SettingsService {
    */
   async updateUserRole(userId, role) {
     try {
-      const response = await apiClient.patch(`/users/${userId}/role`, { role });
+      const response = await apiClient.patch(`/settings/users/${userId}/role`, { role });
       return response.data;
     } catch (error) {
       console.error('Failed to update user role:', error);

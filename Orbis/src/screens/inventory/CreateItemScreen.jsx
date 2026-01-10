@@ -117,7 +117,7 @@ const CreateItemScreen = ({ route, navigation }) => {
 
   return (
     <ScreenWrapper>
-      <ScrollView style={styles.container}>
+      <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
         <Text style={styles.title}>
           {isEditMode ? 'Edit Item' : 'Add New Item'}
         </Text>
@@ -125,54 +125,60 @@ const CreateItemScreen = ({ route, navigation }) => {
         <View style={styles.form}>
           <Input
             label="Item Name *"
-            placeholder="Enter item name"
+            placeholder="Enter the product name"
             value={formData.name}
             onChangeText={(value) => handleInputChange('name', value)}
             error={errors.name}
+            helperText="Full name of the product or item"
           />
 
           <Input
-            label="SKU *"
-            placeholder="Enter SKU"
+            label="SKU (Stock Keeping Unit) *"
+            placeholder="Enter unique SKU code"
             value={formData.sku}
             onChangeText={(value) => handleInputChange('sku', value)}
             error={errors.sku}
             editable={!isEditMode}
+            helperText="Unique identifier for inventory tracking"
           />
 
           <Input
             label="Category"
-            placeholder="Enter category"
+            placeholder="e.g., Electronics, Clothing, Food"
             value={formData.category}
             onChangeText={(value) => handleInputChange('category', value)}
             error={errors.category}
+            helperText="Product category for organization"
           />
 
           <Input
             label="Description"
-            placeholder="Enter description"
+            placeholder="Enter detailed product description"
             value={formData.description}
             onChangeText={(value) => handleInputChange('description', value)}
             multiline
             numberOfLines={3}
+            helperText="Detailed information about the item"
           />
 
           <View style={styles.row}>
             <Input
-              label="Quantity *"
+              label="Initial Quantity *"
               placeholder="0"
               value={formData.quantity}
               onChangeText={(value) => handleInputChange('quantity', value)}
               keyboardType="numeric"
               error={errors.quantity}
+              helperText="Starting stock"
               style={styles.rowItem}
             />
 
             <Input
-              label="Unit"
-              placeholder="units"
+              label="Unit of Measure"
+              placeholder="pcs, kg, ltr"
               value={formData.unit}
               onChangeText={(value) => handleInputChange('unit', value)}
+              helperText="e.g., pieces, kg"
               style={styles.rowItem}
             />
           </View>
@@ -185,6 +191,7 @@ const CreateItemScreen = ({ route, navigation }) => {
               onChangeText={(value) => handleInputChange('costPrice', value)}
               keyboardType="decimal-pad"
               error={errors.costPrice}
+              helperText="Purchase cost"
               style={styles.rowItem}
             />
 
@@ -195,18 +202,19 @@ const CreateItemScreen = ({ route, navigation }) => {
               onChangeText={(value) => handleInputChange('sellingPrice', value)}
               keyboardType="decimal-pad"
               error={errors.sellingPrice}
+              helperText="Sale price"
               style={styles.rowItem}
             />
           </View>
 
           <Input
             label="Reorder Level *"
-            placeholder="Enter reorder level"
+            placeholder="Enter minimum stock level"
             value={formData.reorderLevel}
             onChangeText={(value) => handleInputChange('reorderLevel', value)}
             keyboardType="numeric"
             error={errors.reorderLevel}
-            helperText="You'll be notified when stock falls below this level"
+            helperText="Alert when stock falls below this quantity"
           />
         </View>
 
@@ -257,6 +265,9 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     paddingTop: spacing.xl,
     paddingBottom: spacing.xl,
+  },
+  scrollContent: {
+    paddingBottom: spacing.xl * 3,
   },
 });
 

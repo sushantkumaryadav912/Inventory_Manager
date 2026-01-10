@@ -53,7 +53,7 @@ const OverviewReportScreen = ({ navigation }) => {
 
   return (
     <ScreenWrapper>
-      <ScrollView style={styles.container}>
+      <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
         <Text style={styles.title}>Business Overview</Text>
 
         {/* Key Metrics */}
@@ -271,6 +271,9 @@ const styles = StyleSheet.create({
     fontWeight: typography.fontWeight.semibold,
     color: colors.primary[600],
     marginRight: spacing.xs,
+  },
+  scrollContent: {
+    paddingBottom: spacing.xl * 3,
   },
 });
 

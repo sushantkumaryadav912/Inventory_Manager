@@ -1,24 +1,53 @@
 // src/screens/settings/BusinessProfileScreen.jsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
-import { ScreenWrapper } from '../../components/layout';
+import { ScreenWrapper, LoadingOverlay } from '../../components/layout';
 import { Input, Button } from '../../components/ui';
-import { showSuccessAlert } from '../../utils/errorHandler';
+import { settingsService } from '../../services/api';
+import { showSuccessAlert, showErrorAlert } from '../../utils/errorHandler';
 import { colors, spacing, typography } from '../../theme';
 
 const BusinessProfileScreen = ({ navigation }) => {
   const [formData, setFormData] = useState({
-    businessName: 'My Business',
-    ownerName: 'John Doe',
-    email: 'john@business.com',
-    phone: '+91 98765 43210',
-    address: '123 Business Street',
-    city: 'Mumbai',
-    state: 'Maharashtra',
-    pincode: '400001',
+    businessName: '',
+    ownerName: '',
+    email: '',
+    phone: '',
+    address: '',
+    city: '',
+    state: '',
+    pincode: '',
     gstNumber: '',
   });
+  const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    loadBusinessProfile();
+  }, []);
+
+  const loadBusinessProfile = async () => {
+    try {
+      setIsLoading(true);
+      const profile = await settingsService.getBusinessProfile();
+      setFormData({
+        businessName: profile.businessName || '',
+        ownerName: profile.ownerName || '',
+        email: profile.email || '',
+        phone: profile.phone || '',
+        address: profile.address || '',
+        city: profile.city || '',
+        state: profile.state || '',
+        pincode: profile.pincode || '',
+        gstNumber: profile.gstNumber || '',
+      });
+    } catch (error) {
+      console.error('Failed to load business profile:', error);
+      showErrorAlert(error, 'Failed to load business profile');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleInputChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -27,68 +56,84 @@ const BusinessProfileScreen = ({ navigation }) => {
   const handleSave = async () => {
     try {
       setIsSubmitting(true);
-      // TODO: Call API to update business profile
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await settingsService.updateBusinessProfile(formData);
       showSuccessAlert('Business profile updated successfully');
       navigation.goBack();
     } catch (error) {
+      showErrorAlert(error, 'Failed to update business profile');
       console.error('Failed to update profile:', error);
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  if (isLoading) {
+    return <LoadingOverlay visible={true} />;
+  }
+
   return (
     <ScreenWrapper>
-      <ScrollView style={styles.container}>
+      <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
         <Text style={styles.title}>Business Profile</Text>
 
         <View style={styles.form}>
           <Input
             label="Business Name *"
+            placeholder="Enter your business name"
             value={formData.businessName}
             onChangeText={(value) => handleInputChange('businessName', value)}
+            helperText="Legal name of your business"
           />
 
           <Input
             label="Owner Name *"
+            placeholder="Enter owner's full name"
             value={formData.ownerName}
             onChangeText={(value) => handleInputChange('ownerName', value)}
+            helperText="Name of the business owner"
           />
 
           <Input
-            label="Email *"
+            label="Business Email *"
+            placeholder="business@example.com"
             value={formData.email}
             onChangeText={(value) => handleInputChange('email', value)}
             keyboardType="email-address"
             autoCapitalize="none"
+            helperText="Primary contact email for business"
           />
 
           <Input
-            label="Phone *"
+            label="Phone Number *"
+            placeholder="+1 (555) 123-4567"
             value={formData.phone}
             onChangeText={(value) => handleInputChange('phone', value)}
             keyboardType="phone-pad"
+            helperText="Business contact number"
           />
 
           <Input
-            label="Address"
+            label="Business Address"
+            placeholder="Street address, building number"
             value={formData.address}
             onChangeText={(value) => handleInputChange('address', value)}
             multiline
             numberOfLines={2}
+            helperText="Complete business address"
           />
 
           <View style={styles.row}>
             <Input
               label="City"
+              placeholder="Enter city"
               value={formData.city}
               onChangeText={(value) => handleInputChange('city', value)}
               style={styles.rowItem}
             />
 
             <Input
-              label="State"
+              label="State/Province"
+              placeholder="Enter state"
               value={formData.state}
               onChangeText={(value) => handleInputChange('state', value)}
               style={styles.rowItem}
@@ -96,17 +141,20 @@ const BusinessProfileScreen = ({ navigation }) => {
           </View>
 
           <Input
-            label="PIN Code"
+            label="ZIP/Postal Code"
+            placeholder="Enter postal code"
             value={formData.pincode}
             onChangeText={(value) => handleInputChange('pincode', value)}
             keyboardType="numeric"
           />
 
           <Input
-            label="GST Number"
+            label="GST Number (Optional)"
+            placeholder="Enter GST registration number"
             value={formData.gstNumber}
             onChangeText={(value) => handleInputChange('gstNumber', value)}
             autoCapitalize="characters"
+            helperText="Tax registration number if applicable"
           />
         </View>
 
@@ -157,6 +205,9 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     paddingTop: spacing.xl,
     paddingBottom: spacing.xl,
+  },
+  scrollContent: {
+    paddingBottom: spacing.xl * 3,
   },
 });
 

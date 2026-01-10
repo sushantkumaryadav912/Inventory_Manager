@@ -51,7 +51,7 @@ const InventoryReportScreen = () => {
 
   return (
     <ScreenWrapper>
-      <ScrollView style={styles.container}>
+      <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
         <Text style={styles.title}>Inventory Report</Text>
 
         {/* Summary Stats */}
@@ -188,6 +188,9 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: typography.fontSize.base,
     color: colors.text.secondary,
+  },
+  scrollContent: {
+    paddingBottom: spacing.xl * 3,
   },
 });
 

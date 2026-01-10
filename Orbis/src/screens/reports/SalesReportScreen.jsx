@@ -47,7 +47,7 @@ const SalesReportScreen = () => {
 
   return (
     <ScreenWrapper>
-      <ScrollView style={styles.container}>
+      <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
         <Text style={styles.title}>Sales Report</Text>
 
         {/* Summary Stats */}
@@ -197,6 +197,9 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: typography.fontSize.base,
     color: colors.text.secondary,
+  },
+  scrollContent: {
+    paddingBottom: spacing.xl * 3,
   },
 });
 

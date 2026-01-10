@@ -89,7 +89,7 @@ const ItemDetailScreen = ({ route, navigation }) => {
 
   return (
     <ScreenWrapper>
-      <ScrollView style={styles.container}>
+      <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
         {/* Header Card */}
         <Card style={styles.headerCard}>
           <View style={styles.headerTop}>
@@ -306,6 +306,9 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     gap: spacing.md,
     marginTop: spacing.lg,
+  },
+  scrollContent: {
+    paddingBottom: spacing.xl * 3,
   },
 });
 

@@ -64,7 +64,7 @@ const SaleDetailScreen = ({ route, navigation }) => {
 
   return (
     <ScreenWrapper>
-      <ScrollView style={styles.container}>
+      <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
         <Card style={styles.headerCard}>
           <View style={styles.header}>
             <View>
@@ -226,6 +226,9 @@ const styles = StyleSheet.create({
   actions: {
     padding: spacing.md,
     marginTop: spacing.lg,
+  },
+  scrollContent: {
+    paddingBottom: spacing.xl * 3,
   },
 });
 

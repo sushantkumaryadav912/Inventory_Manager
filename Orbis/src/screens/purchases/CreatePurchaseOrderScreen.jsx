@@ -140,17 +140,22 @@ const CreatePurchaseOrderScreen = ({ navigation }) => {
 
   return (
     <ScreenWrapper>
-      <ScrollView style={styles.container}>
+      <ScrollView 
+        style={styles.container}
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+      >
         <Text style={styles.title}>New Purchase Order</Text>
 
         <View style={styles.form}>
           <Dropdown
             label="Supplier *"
-            placeholder="Select supplier"
+            placeholder="Choose a supplier for this order"
             value={formData.supplierId}
             items={supplierDropdownItems}
             onSelect={(value) => handleInputChange('supplierId', value)}
             error={errors.supplierId}
+            helperText="Select the supplier providing these items"
           />
 
           <DatePicker
@@ -158,6 +163,7 @@ const CreatePurchaseOrderScreen = ({ navigation }) => {
             value={formData.orderDate}
             onChange={(date) => handleInputChange('orderDate', date)}
             error={errors.orderDate}
+            helperText="Date when the order is placed"
           />
 
           <DatePicker
@@ -165,6 +171,7 @@ const CreatePurchaseOrderScreen = ({ navigation }) => {
             value={formData.expectedDate}
             onChange={(date) => handleInputChange('expectedDate', date)}
             minimumDate={formData.orderDate}
+            helperText="Estimated date of delivery from supplier"
           />
 
           <Input
@@ -180,18 +187,19 @@ const CreatePurchaseOrderScreen = ({ navigation }) => {
             <Text style={styles.sectionTitle}>Items *</Text>
 
             <Dropdown
-              label="Product"
-              placeholder="Select product"
+              label="Product *"
+              placeholder="Choose product to order"
               value={lineItem.productId}
               items={productDropdownItems}
               onSelect={(value) => setLineItem((prev) => ({ ...prev, productId: value }))}
               error={errors.productId}
+              helperText="Select item to purchase from supplier"
             />
 
             <View style={styles.row}>
               <Input
-                label="Qty"
-                placeholder="1"
+                label="Quantity *"
+                placeholder="Enter qty"
                 value={lineItem.quantity}
                 onChangeText={(value) => setLineItem((prev) => ({ ...prev, quantity: value }))}
                 keyboardType="numeric"
@@ -292,6 +300,9 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     paddingTop: spacing.xl,
     paddingBottom: spacing.xl,
+  },
+  scrollContent: {
+    paddingBottom: spacing.xl * 3,
   },
 });
 

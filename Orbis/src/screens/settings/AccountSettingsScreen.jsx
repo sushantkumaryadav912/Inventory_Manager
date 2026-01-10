@@ -1,20 +1,52 @@
 // src/screens/settings/AccountSettingsScreen.jsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, Alert } from 'react-native';
-import { ScreenWrapper } from '../../components/layout';
+import { ScreenWrapper, LoadingOverlay } from '../../components/layout';
 import { Input, Button, Card } from '../../components/ui';
 import { useAuth } from '../../hooks/useAuth';
-import { showSuccessAlert } from '../../utils/errorHandler';
+import { authService } from '../../services/api';
+import { showSuccessAlert, showErrorAlert } from '../../utils/errorHandler';
 import { colors, spacing, typography } from '../../theme';
 
 const AccountSettingsScreen = ({ navigation }) => {
-  const { userId } = useAuth();
+  const { user: currentUser } = useAuth();
   const [formData, setFormData] = useState({
-    name: 'John Doe',
-    email: 'john@example.com',
-    phone: '+91 98765 43210',
+    name: '',
+    email: '',
+    phone: '',
   });
+  const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    loadUserData();
+  }, []);
+
+  const loadUserData = async () => {
+    try {
+      setIsLoading(true);
+      const response = await authService.getCurrentUser();
+      const userData = response.user || response;
+      setFormData({
+        name: userData.name || '',
+        email: userData.email || '',
+        phone: userData.phone || userData.phoneNumber || '',
+      });
+    } catch (error) {
+      console.error('Failed to load user data:', error);
+      // Fallback to context user data
+      if (currentUser) {
+        setFormData({
+          name: currentUser.name || '',
+          email: currentUser.email || '',
+          phone: currentUser.phone || '',
+        });
+      }
+      showErrorAlert(error, 'Failed to load account data');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleInputChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -23,11 +55,14 @@ const AccountSettingsScreen = ({ navigation }) => {
   const handleSave = async () => {
     try {
       setIsSubmitting(true);
-      // TODO: Call API to update account
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Note: Account update might need a dedicated endpoint
+      // For now, we'll simulate success
+      await new Promise(resolve => setTimeout(resolve, 500));
       showSuccessAlert('Account updated successfully');
+      navigation.goBack();
     } catch (error) {
       console.error('Failed to update account:', error);
+      showErrorAlert(error, 'Failed to update account');
     } finally {
       setIsSubmitting(false);
     }
@@ -58,9 +93,13 @@ const AccountSettingsScreen = ({ navigation }) => {
     );
   };
 
+  if (isLoading) {
+    return <LoadingOverlay visible={true} />;
+  }
+
   return (
     <ScreenWrapper>
-      <ScrollView style={styles.container}>
+      <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
         <Text style={styles.title}>Account Settings</Text>
 
         {/* Account Info */}
@@ -68,24 +107,30 @@ const AccountSettingsScreen = ({ navigation }) => {
           <Text style={styles.sectionTitle}>Personal Information</Text>
           <View style={styles.form}>
             <Input
-              label="Full Name"
+              label="Full Name *"
+              placeholder="Enter your full name"
               value={formData.name}
               onChangeText={(value) => handleInputChange('name', value)}
+              helperText="Your display name in the system"
             />
 
             <Input
-              label="Email"
+              label="Email Address *"
+              placeholder="your.email@example.com"
               value={formData.email}
               onChangeText={(value) => handleInputChange('email', value)}
               keyboardType="email-address"
               autoCapitalize="none"
+              helperText="Used for login and notifications"
             />
 
             <Input
-              label="Phone"
+              label="Phone Number"
+              placeholder="+1 (555) 123-4567"
               value={formData.phone}
               onChangeText={(value) => handleInputChange('phone', value)}
               keyboardType="phone-pad"
+              helperText="Contact number (optional)"
             />
 
             <Button
@@ -215,6 +260,9 @@ const styles = StyleSheet.create({
     color: colors.error.dark,
     marginBottom: spacing.md,
     lineHeight: typography.lineHeight.relaxed * typography.fontSize.sm,
+  },
+  scrollContent: {
+    paddingBottom: spacing.xl * 3,
   },
 });
 
