@@ -1,6 +1,7 @@
 // src/screens/settings/BusinessProfileScreen.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { ScreenWrapper, LoadingOverlay } from '../../components/layout';
 import { Input, Button } from '../../components/ui';
 import { settingsService } from '../../services/api';
@@ -22,9 +23,11 @@ const BusinessProfileScreen = ({ navigation }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  useEffect(() => {
-    loadBusinessProfile();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      loadBusinessProfile();
+    }, [])
+  );
 
   const loadBusinessProfile = async () => {
     try {

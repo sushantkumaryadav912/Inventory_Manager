@@ -84,6 +84,7 @@ export class AuthService {
         id: user.id,
         email: user.email,
         name: user.name,
+        phone: user.phone ?? null,
       },
       expiresIn: this.TOKEN_EXPIRY,
       requiresOnboarding: true, // New user needs to onboard
@@ -131,6 +132,7 @@ export class AuthService {
         id: user.id,
         email: user.email,
         name: user.name,
+        phone: user.phone ?? null,
       },
       expiresIn: this.TOKEN_EXPIRY,
       requiresOnboarding: !userShop, // User needs onboarding if no shop assigned
@@ -147,6 +149,7 @@ export class AuthService {
         id: true,
         email: true,
         name: true,
+        phone: true,
       },
     });
 

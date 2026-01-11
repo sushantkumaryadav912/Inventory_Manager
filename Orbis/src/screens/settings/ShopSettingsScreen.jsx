@@ -1,6 +1,7 @@
 // src/screens/settings/ShopSettingsScreen.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { ScreenWrapper, LoadingOverlay } from '../../components/layout';
 import { Input, Dropdown, Button } from '../../components/ui';
 import { settingsService } from '../../services/api';
@@ -18,19 +19,27 @@ const ShopSettingsScreen = ({ navigation }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  useEffect(() => {
-    loadShopSettings();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      loadShopSettings();
+    }, [])
+  );
 
   const loadShopSettings = async () => {
     try {
       setIsLoading(true);
       const settings = await settingsService.getShopSettings();
+
+      const resolvedTaxRate =
+        settings.taxRate ?? settings.defaultTaxRate ?? 18;
+      const resolvedLowStockThreshold =
+        settings.lowStockThreshold ?? settings.reorderLevel ?? 10;
+
       setFormData({
         shopName: settings.shopName || settings.name || '',
         currency: settings.currency || 'INR',
-        taxRate: String(settings.taxRate || settings.defaultTaxRate || '18'),
-        lowStockThreshold: String(settings.lowStockThreshold || settings.reorderLevel || '10'),
+        taxRate: String(resolvedTaxRate),
+        lowStockThreshold: String(resolvedLowStockThreshold),
         enableNotifications: settings.enableNotifications !== false,
       });
     } catch (error) {

@@ -1,6 +1,7 @@
 // src/screens/settings/AccountSettingsScreen.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, Alert } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { ScreenWrapper, LoadingOverlay } from '../../components/layout';
 import { Input, Button, Card } from '../../components/ui';
 import { useAuth } from '../../hooks/useAuth';
@@ -18,9 +19,11 @@ const AccountSettingsScreen = ({ navigation }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  useEffect(() => {
-    loadUserData();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      loadUserData();
+    }, [currentUser])
+  );
 
   const loadUserData = async () => {
     try {

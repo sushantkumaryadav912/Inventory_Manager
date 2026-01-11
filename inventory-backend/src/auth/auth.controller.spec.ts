@@ -64,6 +64,8 @@ describe('AuthController', () => {
     });
 
     beforeEach(async () => {
+        jest.clearAllMocks();
+
         const module: TestingModule = await Test.createTestingModule({
             controllers: [AuthController],
             providers: [
@@ -109,5 +111,55 @@ describe('AuthController', () => {
 
     it('should have login method', () => {
         expect(controller.login).toBeDefined();
+    });
+
+    it('should include phone in getCurrentUser response', async () => {
+        mockPrismaService.users.findUnique.mockResolvedValueOnce({
+            id: 'user-1',
+            email: 'user@example.com',
+            name: 'User',
+            phone: '+15551234567',
+            user_shops: [
+                {
+                    shop_id: 'shop-1',
+                    role: 'OWNER',
+                    shops: {
+                        name: 'My Shop',
+                    },
+                },
+            ],
+        });
+
+        const res = await controller.getCurrentUser({
+            user: { userId: 'user-1', email: 'user@example.com', name: 'User' },
+        } as any);
+
+        expect(res.user).toMatchObject({
+            id: 'user-1',
+            email: 'user@example.com',
+            name: 'User',
+            phone: '+15551234567',
+            shopId: 'shop-1',
+            shopName: 'My Shop',
+            role: 'OWNER',
+        });
+    });
+
+    it('should return phone as null when user record is missing', async () => {
+        mockPrismaService.users.findUnique.mockResolvedValueOnce(null);
+
+        const res = await controller.getCurrentUser({
+            user: { userId: 'missing', email: 'missing@example.com', name: 'Missing' },
+        } as any);
+
+        expect(res.user).toMatchObject({
+            id: 'missing',
+            email: 'missing@example.com',
+            name: 'Missing',
+            phone: null,
+            shopId: null,
+            shopName: null,
+            role: null,
+        });
     });
 });
