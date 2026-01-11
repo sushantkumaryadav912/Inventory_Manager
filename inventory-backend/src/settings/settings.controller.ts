@@ -59,4 +59,13 @@ export class SettingsController {
     const shopId = req.shop.shopId;
     return this.settingsService.getShopUsers(shopId);
   }
+
+  /**
+   * PATCH /settings/account - Update current user's account
+   */
+  @Patch('account')
+  async updateAccount(@Request() req, @Body() data: any) {
+    const userId = req.user.userId;
+    return this.settingsService.updateUserAccount(userId, data);
+  }
 }

@@ -4,7 +4,7 @@ import { View, Text, StyleSheet, ScrollView, Alert } from 'react-native';
 import { ScreenWrapper, LoadingOverlay } from '../../components/layout';
 import { Input, Button, Card } from '../../components/ui';
 import { useAuth } from '../../hooks/useAuth';
-import { authService } from '../../services/api';
+import { authService, settingsService } from '../../services/api';
 import { showSuccessAlert, showErrorAlert } from '../../utils/errorHandler';
 import { colors, spacing, typography } from '../../theme';
 
@@ -55,9 +55,10 @@ const AccountSettingsScreen = ({ navigation }) => {
   const handleSave = async () => {
     try {
       setIsSubmitting(true);
-      // Note: Account update might need a dedicated endpoint
-      // For now, we'll simulate success
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await settingsService.updateAccount({
+        name: formData.name,
+        email: formData.email,
+      });
       showSuccessAlert('Account updated successfully');
       navigation.goBack();
     } catch (error) {

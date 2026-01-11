@@ -92,6 +92,19 @@ class SettingsService {
       throw error;
     }
   }
+
+  /**
+   * Update current user's account information
+   */
+  async updateAccount(accountData) {
+    try {
+      const response = await apiClient.patch('/settings/account', accountData);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to update account:', error);
+      throw error;
+    }
+  }
 }
 
 export default new SettingsService();

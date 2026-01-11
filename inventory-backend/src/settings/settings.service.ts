@@ -54,10 +54,10 @@ export class SettingsService {
     },
   ) {
     const updateData: any = {};
-    if (data.businessName) updateData.name = data.businessName;
-    if (data.businessType) updateData.business_type = data.businessType;
-    if (data.address) updateData.address = data.address;
-    if (data.phone) updateData.phone = data.phone;
+    if (data.businessName !== undefined) updateData.name = data.businessName;
+    if (data.businessType !== undefined) updateData.business_type = data.businessType;
+    if (data.address !== undefined) updateData.address = data.address;
+    if (data.phone !== undefined) updateData.phone = data.phone;
 
     const shop = await this.prisma.shops.update({
       where: { id: shopId },
@@ -122,7 +122,7 @@ export class SettingsService {
     },
   ) {
     // Update shop name if provided
-    if (data.shopName) {
+    if (data.shopName !== undefined) {
       await this.prisma.shops.update({
         where: { id: shopId },
         data: {
@@ -132,13 +132,19 @@ export class SettingsService {
       });
     }
 
+    // Get the updated shop to return accurate data
+    const shop = await this.prisma.shops.findUnique({
+      where: { id: shopId },
+      select: { name: true },
+    });
+
     // Return updated settings
-    // For now, we just echo back what was sent since we don't have a settings table
+    // For now, we echo back settings since we don't have a settings table
     return {
-      shopName: data.shopName,
-      currency: data.currency || 'INR',
-      taxRate: data.taxRate || 0,
-      lowStockThreshold: data.lowStockThreshold || 10,
+      shopName: shop?.name || data.shopName || '',
+      currency: data.currency ?? 'INR',
+      taxRate: data.taxRate ?? 0,
+      lowStockThreshold: data.lowStockThreshold ?? 10,
     };
   }
 
@@ -169,5 +175,43 @@ export class SettingsService {
         role: us.role,
         createdAt: us.users!.created_at,
       }));
+  }
+
+  /**
+   * Update user's own account information
+   */
+  async updateUserAccount(
+    userId: string,
+    data: {
+      name?: string;
+      email?: string;
+    },
+  ) {
+    const updateData: any = {};
+    if (data.name !== undefined) updateData.name = data.name;
+    if (data.email !== undefined) updateData.email = data.email;
+
+    // Add updated_at timestamp
+    if (Object.keys(updateData).length > 0) {
+      updateData.updated_at = new Date();
+    }
+
+    const user = await this.prisma.users.update({
+      where: { id: userId },
+      data: updateData,
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        updated_at: true,
+      },
+    });
+
+    return {
+      id: user.id,
+      name: user.name || '',
+      email: user.email,
+      updatedAt: user.updated_at,
+    };
   }
 }
