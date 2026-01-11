@@ -5,6 +5,14 @@ import { PrismaService } from '../prisma/prisma.service';
 export class SettingsService {
   constructor(private prisma: PrismaService) {}
 
+  private toNumber(value: unknown): number {
+    if (typeof value === 'number') return value;
+    if (value && typeof (value as any).toNumber === 'function') {
+      return (value as any).toNumber();
+    }
+    return 0;
+  }
+
   /**
    * Get business profile (shop details)
    */
@@ -15,7 +23,13 @@ export class SettingsService {
         id: true,
         name: true,
         business_type: true,
+        owner_name: true,
+        email: true,
         address: true,
+        city: true,
+        state: true,
+        pincode: true,
+        gst_number: true,
         phone: true,
         created_at: true,
         updated_at: true,
@@ -29,14 +43,15 @@ export class SettingsService {
     return {
       id: shop.id,
       businessName: shop.name,
+      ownerName: shop.owner_name || '',
+      email: shop.email || '',
       businessType: shop.business_type || '',
       address: shop.address || '',
-      city: '', // Not in schema, return empty
-      state: '', // Not in schema, return empty
-      zipCode: '', // Not in schema, return empty
+      city: shop.city || '',
+      state: shop.state || '',
+      pincode: shop.pincode || '',
       phone: shop.phone || '',
-      email: '', // Not in schema, return empty
-      gstNumber: '', // Not in schema, return empty
+      gstNumber: shop.gst_number || '',
     };
   }
 
@@ -47,17 +62,28 @@ export class SettingsService {
     shopId: string,
     data: {
       businessName?: string;
+      ownerName?: string;
       businessType?: string;
       address?: string;
+      city?: string;
+      state?: string;
+      pincode?: string;
       phone?: string;
       email?: string;
+      gstNumber?: string;
     },
   ) {
     const updateData: any = {};
     if (data.businessName !== undefined) updateData.name = data.businessName;
+    if (data.ownerName !== undefined) updateData.owner_name = data.ownerName;
     if (data.businessType !== undefined) updateData.business_type = data.businessType;
     if (data.address !== undefined) updateData.address = data.address;
+    if (data.city !== undefined) updateData.city = data.city;
+    if (data.state !== undefined) updateData.state = data.state;
+    if (data.pincode !== undefined) updateData.pincode = data.pincode;
     if (data.phone !== undefined) updateData.phone = data.phone;
+    if (data.email !== undefined) updateData.email = data.email;
+    if (data.gstNumber !== undefined) updateData.gst_number = data.gstNumber;
 
     const shop = await this.prisma.shops.update({
       where: { id: shopId },
@@ -69,7 +95,13 @@ export class SettingsService {
         id: true,
         name: true,
         business_type: true,
+        owner_name: true,
+        email: true,
         address: true,
+        city: true,
+        state: true,
+        pincode: true,
+        gst_number: true,
         phone: true,
       },
     });
@@ -77,10 +109,15 @@ export class SettingsService {
     return {
       id: shop.id,
       businessName: shop.name,
+      ownerName: shop.owner_name || '',
       businessType: shop.business_type || '',
       address: shop.address || '',
+      city: shop.city || '',
+      state: shop.state || '',
+      pincode: shop.pincode || '',
       phone: shop.phone || '',
-      email: data.email || '',
+      email: shop.email || '',
+      gstNumber: shop.gst_number || '',
     };
   }
 
@@ -93,6 +130,9 @@ export class SettingsService {
       select: {
         id: true,
         name: true,
+        currency: true,
+        tax_rate: true,
+        low_stock_threshold: true,
       },
     });
 
@@ -100,12 +140,11 @@ export class SettingsService {
       throw new NotFoundException('Shop not found');
     }
 
-    // Return default settings since we don't have a settings table yet
     return {
       shopName: shop.name,
-      currency: 'INR', // Default currency
-      taxRate: 0, // Default tax rate
-      lowStockThreshold: 10, // Default threshold
+      currency: shop.currency || 'INR',
+      taxRate: this.toNumber(shop.tax_rate),
+      lowStockThreshold: shop.low_stock_threshold ?? 10,
     };
   }
 
@@ -121,30 +160,35 @@ export class SettingsService {
       lowStockThreshold?: number;
     },
   ) {
-    // Update shop name if provided
-    if (data.shopName !== undefined) {
-      await this.prisma.shops.update({
-        where: { id: shopId },
-        data: {
-          name: data.shopName,
-          updated_at: new Date(),
-        },
-      });
+    const updateData: any = {};
+    if (data.shopName !== undefined) updateData.name = data.shopName;
+    if (data.currency !== undefined) updateData.currency = data.currency;
+    if (data.taxRate !== undefined && Number.isFinite(data.taxRate)) {
+      updateData.tax_rate = data.taxRate;
+    }
+    if (data.lowStockThreshold !== undefined && Number.isFinite(data.lowStockThreshold)) {
+      updateData.low_stock_threshold = data.lowStockThreshold;
     }
 
-    // Get the updated shop to return accurate data
-    const shop = await this.prisma.shops.findUnique({
+    const shop = await this.prisma.shops.update({
       where: { id: shopId },
-      select: { name: true },
+      data: {
+        ...updateData,
+        updated_at: new Date(),
+      },
+      select: {
+        name: true,
+        currency: true,
+        tax_rate: true,
+        low_stock_threshold: true,
+      },
     });
 
-    // Return updated settings
-    // For now, we echo back settings since we don't have a settings table
     return {
-      shopName: shop?.name || data.shopName || '',
-      currency: data.currency ?? 'INR',
-      taxRate: data.taxRate ?? 0,
-      lowStockThreshold: data.lowStockThreshold ?? 10,
+      shopName: shop.name,
+      currency: shop.currency || 'INR',
+      taxRate: this.toNumber(shop.tax_rate),
+      lowStockThreshold: shop.low_stock_threshold ?? 10,
     };
   }
 
@@ -185,11 +229,13 @@ export class SettingsService {
     data: {
       name?: string;
       email?: string;
+      phone?: string;
     },
   ) {
     const updateData: any = {};
     if (data.name !== undefined) updateData.name = data.name;
     if (data.email !== undefined) updateData.email = data.email;
+    if (data.phone !== undefined) updateData.phone = data.phone;
 
     // Add updated_at timestamp
     if (Object.keys(updateData).length > 0) {
@@ -203,6 +249,7 @@ export class SettingsService {
         id: true,
         name: true,
         email: true,
+        phone: true,
         updated_at: true,
       },
     });
@@ -211,6 +258,7 @@ export class SettingsService {
       id: user.id,
       name: user.name || '',
       email: user.email,
+      phone: user.phone || '',
       updatedAt: user.updated_at,
     };
   }

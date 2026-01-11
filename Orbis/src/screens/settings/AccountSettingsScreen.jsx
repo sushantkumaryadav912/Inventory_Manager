@@ -58,6 +58,7 @@ const AccountSettingsScreen = ({ navigation }) => {
       await settingsService.updateAccount({
         name: formData.name,
         email: formData.email,
+        phone: formData.phone,
       });
       showSuccessAlert('Account updated successfully');
       navigation.goBack();

@@ -145,8 +145,17 @@ model shops {
   id              String            @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
   name            String            @db.VarChar
   business_type   String?           @db.VarChar
+  owner_name      String?           @db.VarChar
+  email           String?           @db.VarChar
   address         String?
+  city            String?           @db.VarChar
+  state           String?           @db.VarChar
+  pincode         String?           @db.VarChar
+  gst_number      String?           @db.VarChar
   phone           String?           @db.VarChar
+  currency        String?           @db.VarChar
+  tax_rate        Decimal?          @db.Decimal
+  low_stock_threshold Int?          @default(10)
   created_at      DateTime?         @default(now()) @db.Timestamp(6)
   updated_at      DateTime?         @default(now()) @db.Timestamp(6)
   categories      categories[]
@@ -206,6 +215,7 @@ model users {
   id                      String                    @id @db.Uuid
   name                    String?                   @db.VarChar
   email                   String                    @unique @db.VarChar
+  phone                   String?                   @db.VarChar
   password_hash           String?                   @db.VarChar
   email_verified          Boolean?                  @default(false)
   email_verified_at       DateTime?                 @db.Timestamp(6)

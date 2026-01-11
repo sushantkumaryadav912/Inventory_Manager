@@ -122,23 +122,19 @@ const BusinessProfileScreen = ({ navigation }) => {
             helperText="Complete business address"
           />
 
-          <View style={styles.row}>
-            <Input
-              label="City"
-              placeholder="Enter city"
-              value={formData.city}
-              onChangeText={(value) => handleInputChange('city', value)}
-              style={styles.rowItem}
-            />
+          <Input
+            label="City"
+            placeholder="Enter city"
+            value={formData.city}
+            onChangeText={(value) => handleInputChange('city', value)}
+          />
 
-            <Input
-              label="State/Province"
-              placeholder="Enter state"
-              value={formData.state}
-              onChangeText={(value) => handleInputChange('state', value)}
-              style={styles.rowItem}
-            />
-          </View>
+          <Input
+            label="State/Province"
+            placeholder="Enter state"
+            value={formData.state}
+            onChangeText={(value) => handleInputChange('state', value)}
+          />
 
           <Input
             label="ZIP/Postal Code"
@@ -198,6 +194,12 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   rowItem: {
+    flex: 1,
+  },
+  cityField: {
+    flex: 2,
+  },
+  stateField: {
     flex: 1,
   },
   actions: {
